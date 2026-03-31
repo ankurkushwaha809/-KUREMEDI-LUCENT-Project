@@ -1,0 +1,272 @@
+'use client';
+
+import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { ArrowLeft, Receipt, Check, Package, Truck, MapPin, RefreshCw, X } from 'lucide-react';
+import { useAppContext } from '@/context/context';
+import * as api from '@/api';
+
+const STATUS_STEPS = [
+  { key: 'PLACED', label: 'Order Placed', icon: Receipt },
+  { key: 'CONFIRMED', label: 'Confirmed', icon: Check },
+  { key: 'DISPATCHED', label: 'Shipped', icon: Package },
+  { key: 'DELIVERED', label: 'Delivered', icon: Truck },
+];
+
+const STATUS_ORDER = ['PENDING', 'PLACED', 'CONFIRMED', 'DISPATCHED', 'DELIVERED', 'CANCELLED'];
+
+function getStepIndex(status) {
+  const s = (status || 'PLACED').toUpperCase();
+  if (s === 'CANCELLED') return -1;
+  const i = STATUS_ORDER.indexOf(s);
+  return i < 0 ? 0 : i;
+}
+
+function OrderStatusTimeline({ status }) {
+  const currentIndex = getStepIndex(status);
+  const statusUpper = (status || 'PLACED').toUpperCase();
+  const isCancelled = statusUpper === 'CANCELLED';
+
+  if (isCancelled) {
+    return (
+      <div className="flex items-center gap-2 mt-2">
+        <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center">
+          <X className="w-3.5 h-3.5 text-red-600" />
+        </div>
+        <span className="text-red-600 font-medium text-sm">Cancelled</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 flex justify-between relative">
+      {STATUS_STEPS.map((step, index) => {
+        const stepOrderIndex = STATUS_ORDER.indexOf(step.key);
+        const isDone = currentIndex > stepOrderIndex || (step.key === 'DELIVERED' && statusUpper === 'DELIVERED');
+        const isCurrent = statusUpper === step.key;
+        const Icon = step.icon;
+        return (
+          <div key={step.key} className="flex flex-col items-center flex-1 relative z-10">
+            <div
+              className={`w-9 h-9 rounded-full flex items-center justify-center ${
+                isDone ? 'bg-teal-600' : isCurrent ? 'bg-teal-500' : 'bg-gray-200'
+              }`}
+            >
+              <Icon className={`w-4 h-4 ${isDone || isCurrent ? 'text-white' : 'text-gray-400'}`} />
+            </div>
+            <span
+              className={`text-[10px] mt-1 text-center max-w-[64px] ${
+                isCurrent ? 'text-teal-600 font-semibold' : isDone ? 'text-teal-600' : 'text-gray-400'
+              }`}
+            >
+              {step.label}
+            </span>
+            {index < STATUS_STEPS.length - 1 && (
+              <div
+                className={`absolute top-[18px] left-1/2 w-full h-0.5 z-0 ${
+                  currentIndex > stepOrderIndex ? 'bg-teal-600' : 'bg-gray-200'
+                }`}
+                style={{ width: '100%', marginLeft: '50%' }}
+              />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export default function OrdersPage() {
+  const { token } = useAppContext();
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [trackingOrderId, setTrackingOrderId] = useState(null);
+  const [trackingData, setTrackingData] = useState(null);
+  const [trackingLoading, setTrackingLoading] = useState(false);
+
+  const fetchOrders = useCallback(() => {
+    if (!token) return;
+    setLoading(true);
+    api
+      .getMyOrders()
+      .then((data) => setOrders(Array.isArray(data) ? data : []))
+      .catch(() => setOrders([]))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    fetchOrders();
+  }, [token, fetchOrders]);
+
+  const openTracking = (orderId) => {
+    setTrackingOrderId(orderId);
+    setTrackingData(null);
+    setTrackingLoading(true);
+    api
+      .getOrderTracking(orderId)
+      .then((data) => setTrackingData(data))
+      .catch(() => setTrackingData({ order: undefined, tracking: null }))
+      .finally(() => setTrackingLoading(false));
+  };
+
+  const closeTrackingModal = () => {
+    setTrackingOrderId(null);
+    setTrackingData(null);
+  };
+
+  if (!token) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="text-center">
+          <p className="text-gray-500 mb-4">Please login to view orders</p>
+          <Link href="/login" className="inline-block bg-teal-700 text-white px-6 py-3 rounded-xl font-semibold hover:bg-teal-700">
+            Login
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="sticky top-0 bg-white border-b border-gray-200 z-10">
+        <div className="container mx-auto px-4 py-3 flex items-center gap-4">
+          <Link href="/profile" className="p-1 -ml-1 text-gray-700 hover:text-gray-900">
+            <ArrowLeft className="w-7 h-7" />
+          </Link>
+          <h1 className="text-lg font-semibold text-gray-900">My Orders</h1>
+          <button
+            type="button"
+            onClick={fetchOrders}
+            disabled={loading}
+            className="ml-auto p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-50"
+            aria-label="Refresh orders"
+          >
+            <RefreshCw className={`w-5 h-5 text-teal-700 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-20 px-4">
+          <div className="w-10 h-10 border-2 border-teal-700 border-t-transparent rounded-full animate-spin mb-3" />
+          <p className="text-gray-500">Loading orders...</p>
+        </div>
+      ) : orders.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 px-4">
+          <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+            <Receipt className="w-10 h-10 text-gray-400" />
+          </div>
+          <p className="text-lg font-semibold text-gray-700">No orders yet</p>
+          <p className="text-gray-500 mt-2 text-center">Your orders will appear here once you place them.</p>
+          <Link
+            href="/"
+            className="mt-6 bg-teal-700 text-white px-6 py-3 rounded-xl font-semibold hover:bg-teal-700 transition-colors"
+          >
+            Continue Shopping
+          </Link>
+        </div>
+      ) : (
+        <div className="max-w-xl mx-auto px-4 py-6 space-y-3">
+          {orders.map((item) => {
+            const status = (item.status || 'PLACED').toUpperCase();
+            const hasTracking = !!(item.trackingUrl || item.shiprocketAwb);
+            const isDispatched = status === 'DISPATCHED' || status === 'DELIVERED';
+
+            return (
+              <div
+                key={item._id || Math.random()}
+                className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm"
+              >
+                <div className="flex justify-between items-start">
+                  <p className="text-sm font-medium text-gray-500">
+                    Order #{String(item._id ?? '').slice(-8).toUpperCase()}
+                  </p>
+                  <p className="text-sm font-semibold text-teal-700">
+                    ₹{Number(item.payableAmount ?? item.totalAmount ?? 0)}
+                  </p>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : ''}
+                </p>
+
+                <OrderStatusTimeline status={item.status} />
+
+                {isDispatched && hasTracking && (
+                  <button
+                    type="button"
+                    onClick={() => openTracking(item._id)}
+                    className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-teal-50 border border-teal-200 text-teal-700 font-semibold text-sm hover:bg-teal-100 transition-colors"
+                  >
+                    <MapPin className="w-4 h-4" />
+                    Track order
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Tracking modal */}
+      {trackingOrderId && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+          onClick={closeTrackingModal}
+          onKeyDown={(e) => e.key === 'Escape' && closeTrackingModal()}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="tracking-title"
+        >
+          <div
+            className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+              <h2 id="tracking-title" className="text-lg font-semibold text-gray-900">
+                Where is my order?
+              </h2>
+              <button
+                type="button"
+                onClick={closeTrackingModal}
+                className="p-1 rounded-lg hover:bg-gray-100 text-gray-600"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-4">
+              {trackingLoading ? (
+                <div className="py-12 flex flex-col items-center">
+                  <div className="w-10 h-10 border-2 border-teal-700 border-t-transparent rounded-full animate-spin mb-3" />
+                  <p className="text-gray-500">Loading tracking...</p>
+                </div>
+              ) : trackingData?.tracking?.tracking_data?.shipment_track_activities ? (
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold text-gray-700">Live status</p>
+                  {trackingData.tracking.tracking_data.shipment_track_activities.map((act, i) => (
+                    <div key={i} className="flex gap-3 pb-3 border-b border-gray-100 last:border-0">
+                      <div className="w-2 h-2 rounded-full bg-teal-500 mt-1.5 shrink-0" />
+                      <div>
+                        <p className="text-gray-800 font-medium">{act.status ?? act.activity ?? 'Update'}</p>
+                        <p className="text-xs text-gray-500">{act.date ?? ''}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : trackingData?.tracking ? (
+                <p className="text-gray-500 py-4">No scan updates yet. Status will appear here soon.</p>
+              ) : (
+                <p className="text-gray-500 py-4">Tracking details will appear once available.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

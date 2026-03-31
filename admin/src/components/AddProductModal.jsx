@@ -1,0 +1,439 @@
+import React, { useState, useEffect } from "react";
+import { X, Plus, Trash2 } from "lucide-react";
+import { useContextApi } from "../hooks/useContextApi";
+
+const IMAGE_BASE_URL = "https://api.kuremedi.com";
+
+const getProductImageUrl = (path) => {
+    if (!path) return "";
+    if (path.startsWith("blob:") || path.startsWith("http")) return path;
+    const p = String(path).replace(/\\/g, "/").replace(/^\//, "");
+    return `${IMAGE_BASE_URL}/${p}`;
+};
+
+const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
+    const {
+        GetCategoryData,
+        getBrands,
+        createProductWithFormData,
+        getProductsById,
+        updateProductWithFormData,
+    } = useContextApi();
+
+    const [loading, setLoading] = useState(false);
+    const [categories, setCategories] = useState([]);
+    const [brands, setBrands] = useState([]);
+    const [imageFiles, setImageFiles] = useState([]);
+    const [existingImageUrls, setExistingImageUrls] = useState([]);
+    const [imagePreviews, setImagePreviews] = useState([]);
+
+    const [formData, setFormData] = useState({
+        productName: "",
+        mrp: "",
+        sellingPrice: "",
+        composition: "",
+        packing: "",
+        discount: "",
+        gst: "",
+        gstMode: "exclude",
+
+        category: "",
+        brand: "",
+        manufacturer: "",
+        hsnCode: "",
+        batchNumber: "",
+        expiryDate: "",
+        stockQuantity: "",
+        minStockLevel: "",
+        minOrderQty: "",
+        isActive: true,
+        isPrescriptionRequired: false,
+    });
+
+    const formatDate = (dateString) => {
+        if (!dateString) return "";
+        return new Date(dateString).toISOString().split("T")[0];
+    };
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const [catRes, brandRes] = await Promise.all([
+                    GetCategoryData(),
+                    getBrands ? getBrands() : { data: [] },
+                ]);
+                setCategories(catRes?.data || []);
+                setBrands(brandRes?.data || []);
+
+                if (productId || product) {
+                    setLoading(true);
+                    const item = product || await getProductsById(productId);
+                    const rawImages = item?.productImages || item?.images || [];
+                    const urls = Array.isArray(rawImages) ? rawImages : [];
+
+                    setFormData({
+                        productName: item.productName || "",
+                        mrp: item.mrp || "",
+                        sellingPrice: item.sellingPrice || "",
+                        composition: item.composition || "",
+                        packing: item.packing || "",
+                        discount: item.discountPercent ?? item.discount ?? "",
+                        gst: item.gstPercent ?? item.gst ?? "",
+                        gstMode: item.gstMode || "include",
+                        category: item.category?._id || item.category || "",
+                        brand: item.brand?._id || item.brand || "",
+                        manufacturer: item.manufacturer || "",
+                        hsnCode: item.hsnCode || "",
+                        batchNumber: item.batchNumber || "",
+                        expiryDate: formatDate(item.expiryDate),
+                        stockQuantity: item.stockQuantity ?? "",
+                        minStockLevel: item.minStockLevel ?? "",
+                        minOrderQty: item.minOrderQty ?? "",
+                        isActive: item.isActive ?? true,
+                        isPrescriptionRequired: item.prescriptionRequired ?? item.isPrescriptionRequired ?? false,
+                    });
+                    setExistingImageUrls(urls);
+                    setImageFiles([]);
+                    setImagePreviews(urls.map((img) => getProductImageUrl(img)));
+                } else {
+                    setFormData({
+                        productName: "",
+                        mrp: "",
+                        sellingPrice: "",
+                        composition: "",
+                        packing: "",
+                        discount: "",
+                        gst: "",
+                        gstMode: "exclude",
+                        category: "",
+                        brand: "",
+                        manufacturer: "",
+                        hsnCode: "",
+                        batchNumber: "",
+                        expiryDate: "",
+                        stockQuantity: "",
+                        minStockLevel: "",
+                        minOrderQty: "",
+                        isActive: true,
+                        isPrescriptionRequired: false,
+                    });
+                    setExistingImageUrls([]);
+                    setImageFiles([]);
+                    setImagePreviews([]);
+                }
+            } catch (error) {
+                console.error("Error initializing modal:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
+    }, [productId, product, GetCategoryData, getBrands, getProductsById]);
+
+    const handleChange = (e) => {
+        const { name, value, type, checked } = e.target;
+        const nextValue = type === "checkbox" ? checked : value;
+        setFormData((prev) => {
+            if (name === "gstMode") {
+                return {
+                    ...prev,
+                    gstMode: nextValue,
+                };
+            }
+            if (name === "gst") {
+                const gstNumber = Number(nextValue);
+                return {
+                    ...prev,
+                    gst: nextValue,
+                    gstMode: gstNumber > 0 ? "include" : prev.gstMode,
+                };
+            }
+            return {
+                ...prev,
+                [name]: nextValue,
+            };
+        });
+    };
+
+    const handleImageUpload = (e) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+        const total = imagePreviews.length + files.length;
+        if (total > 6) {
+            alert("Maximum 6 images allowed.");
+            return;
+        }
+        const newPreviews = files.map((f) => URL.createObjectURL(f));
+        setImageFiles((prev) => [...prev, ...files]);
+        setImagePreviews((prev) => [...prev, ...newPreviews]);
+        e.target.value = "";
+    };
+
+    const removeImage = (index) => {
+        const isExisting = index < existingImageUrls.length;
+        if (isExisting) {
+            setExistingImageUrls((prev) => prev.filter((_, i) => i !== index));
+            setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+        } else {
+            const fileIndex = index - existingImageUrls.length;
+            setImageFiles((prev) => prev.filter((_, i) => i !== fileIndex));
+            setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+        }
+    };
+
+    const buildFormData = () => {
+        const fd = new FormData();
+        fd.append("productName", formData.productName.trim());
+        fd.append("mrp", String(formData.mrp || 0));
+        fd.append("sellingPrice", String(formData.sellingPrice || 0));
+        fd.append("composition", formData.composition || "");
+        fd.append("packing", formData.packing || "");
+        fd.append("discountPercent", String(formData.discount || 0));
+        fd.append("gstPercent", String(formData.gstMode === "include" ? (formData.gst || 0) : 0));
+        fd.append("gstMode", String(formData.gstMode || "exclude"));
+        fd.append("category", formData.category || "");
+        fd.append("brand", formData.brand || "");
+        fd.append("manufacturer", formData.manufacturer || "");
+        fd.append("hsnCode", formData.hsnCode || "");
+        fd.append("batchNumber", formData.batchNumber || "");
+        fd.append("expiryDate", formData.expiryDate || "");
+        fd.append("stockQuantity", String(formData.stockQuantity || 0));
+        fd.append("minStockLevel", String(formData.minStockLevel || 0));
+        fd.append("minOrderQty", String(formData.minOrderQty || 1));
+        fd.append("isActive", String(formData.isActive));
+        fd.append("prescriptionRequired", String(formData.isPrescriptionRequired));
+
+        imageFiles.forEach((file) => fd.append("productImages", file));
+
+        if (productId && existingImageUrls.length > 0) {
+            fd.append("existingProductImages", JSON.stringify(existingImageUrls));
+        }
+        return fd;
+    };
+
+    const handleSubmit = async (e) => {
+        e?.preventDefault();
+        const productName = formData.productName?.trim();
+        const sellingPrice = Number(formData.sellingPrice);
+        const mrp = Number(formData.mrp);
+        const category = formData.category;
+        const brand = formData.brand;
+        const discount = Number(formData.discount || 0);
+        const gst = Number(formData.gst || 0);
+        const errs = [];
+        if (!productName) errs.push("Product name is required.");
+        if (!productId && (!imageFiles?.length)) errs.push("At least one product image is required.");
+        if (category === "" || !category) errs.push("Category is required.");
+        if (brand === "" || !brand) errs.push("Brand is required.");
+        if (sellingPrice === undefined || sellingPrice === "" || isNaN(sellingPrice) || sellingPrice < 0)
+            errs.push("Selling price is required and must be a valid number.");
+        if (mrp === undefined || mrp === "" || isNaN(mrp) || mrp < 0)
+            errs.push("MRP is required and must be a valid number.");
+        if (!isNaN(sellingPrice) && !isNaN(mrp) && sellingPrice > mrp)
+            errs.push("Selling price cannot be greater than MRP.");
+        if (isNaN(discount) || discount < 0 || discount > 100)
+            errs.push("Discount must be between 0 and 100.");
+        if (isNaN(gst) || gst < 0)
+            errs.push("GST must be 0 or greater.");
+        if (errs.length) {
+            alert(errs.join("\n"));
+            return;
+        }
+        setLoading(true);
+        try {
+            const fd = buildFormData();
+            if (productId) {
+                await updateProductWithFormData(productId, fd);
+                alert("Product updated successfully!");
+            } else {
+                await createProductWithFormData(fd);
+                alert("Product added successfully!");
+            }
+            if (onSuccess) onSuccess();
+            onClose();
+        } catch (error) {
+            console.error("Submit error:", error);
+            alert("Action failed. Please try again.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const allPreviews = imagePreviews;
+    const gstMode = formData.gstMode || "exclude";
+    const baseSelling = Number(formData.sellingPrice || 0);
+    const discountPercent = Math.min(100, Math.max(0, Number(formData.discount || 0)));
+    const gstPercent = formData.gstMode === "include" ? Math.max(0, Number(formData.gst || 0)) : 0;
+    const discounted = Math.max(0, baseSelling - (baseSelling * discountPercent) / 100);
+    const gstAmount = gstMode === "include" ? (baseSelling * gstPercent) / 100 : 0;
+    const finalPrice = discounted + gstAmount;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+                <div className="flex justify-between items-center p-6 border-b sticky top-0 bg-white z-10">
+                    <h2 className="text-xl font-bold text-gray-800">
+                        {productId ? "Edit Product" : "Add New Product"}
+                    </h2>
+                    <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+                        <X size={24} />
+                    </button>
+                </div>
+
+                <form onSubmit={handleSubmit} className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <label className="block text-sm font-medium text-gray-700">Product Images (max 6)</label>
+                            <div className="grid grid-cols-3 gap-2 mb-2">
+                                {allPreviews.map((src, index) => (
+                                    <div key={index} className="relative group aspect-square border rounded-lg overflow-hidden bg-gray-100">
+                                        <img
+                                            src={src}
+                                            alt="Preview"
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => { e.target.src = "https://via.placeholder.com/150?text=Load+Error"; }}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => removeImage(index)}
+                                            className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                ))}
+                                {allPreviews.length < 6 && (
+                                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg aspect-square cursor-pointer hover:bg-gray-50 transition">
+                                        <Plus size={24} className="text-gray-400" />
+                                        <input type="file" multiple accept="image/*" onChange={handleImageUpload} className="hidden" />
+                                    </label>
+                                )}
+                            </div>
+                        </div>
+
+                        <InputField label="Product Name" name="productName" value={formData.productName} onChange={handleChange} required />
+                        <TextAreaField label="Composition" name="composition" value={formData.composition} onChange={handleChange} />
+                        <InputField label="Packing" name="packing" value={formData.packing} onChange={handleChange} placeholder="e.g. 10 tabs, 1 pouch, Strip of 15" />
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+                                <select name="category" value={formData.category} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
+                                    <option value="">Select Category</option>
+                                    {categories.map((cat) => <option key={cat._id} value={cat._id}>{cat.name}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Brand *</label>
+                                <select name="brand" value={formData.brand} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
+                                    <option value="">Select Brand</option>
+                                    {brands.map((brand) => <option key={brand._id} value={brand._id}>{brand.name}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <InputField label="MRP" name="mrp" type="number" value={formData.mrp} onChange={handleChange} required />
+                            <InputField label="Selling Price" name="sellingPrice" type="number" value={formData.sellingPrice} onChange={handleChange} required />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <InputField label="Discount %" name="discount" type="number" value={formData.discount} onChange={handleChange} />
+                            <InputField
+                                label="GST %"
+                                name="gst"
+                                type="number"
+                                value={formData.gst}
+                                onChange={handleChange}
+                                disabled={formData.gstMode === "exclude"}
+                                placeholder={formData.gstMode === "exclude" ? "Disabled for GST Excluded" : ""}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">GST Type</label>
+                            <div className="grid grid-cols-2 gap-3">
+                                <label className="flex items-center gap-2 border border-gray-300 rounded-lg px-3 py-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="gstMode"
+                                        value="exclude"
+                                        checked={formData.gstMode === "exclude"}
+                                        onChange={handleChange}
+                                    />
+                                    <span className="text-sm text-gray-700">GST Excluded</span>
+                                </label>
+                                <label className="flex items-center gap-2 border border-gray-300 rounded-lg px-3 py-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="gstMode"
+                                        value="include"
+                                        checked={formData.gstMode === "include"}
+                                        onChange={handleChange}
+                                    />
+                                    <span className="text-sm text-gray-700">GST Included</span>
+                                </label>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-2">
+                                {formData.gstMode === "include"
+                                    ? "GST amount will be added on selling price."
+                                    : "GST is excluded. GST % is disabled and no GST is calculated."}
+                            </p>
+                        </div>
+                        <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
+                            <p className="font-medium mb-1">Price Preview</p>
+                            <p>Selling price: Rs {baseSelling.toFixed(2)}</p>
+                            <p>Discount amount: Rs {(baseSelling - discounted).toFixed(2)}</p>
+                            <p>GST ({gstPercent.toFixed(2)}%): Rs {gstAmount.toFixed(2)}</p>
+                            <p className="font-semibold">Final selling price: Rs {finalPrice.toFixed(2)}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <InputField label="HSN Code" name="hsnCode" value={formData.hsnCode} onChange={handleChange} />
+                            <InputField label="Batch Number" name="batchNumber" value={formData.batchNumber} onChange={handleChange} />
+                        </div>
+                        <InputField label="Expiry Date" name="expiryDate" type="date" value={formData.expiryDate} onChange={handleChange} />
+                        <div className="grid grid-cols-3 gap-4">
+                            <InputField label="Stock Qty" name="stockQuantity" type="number" value={formData.stockQuantity} onChange={handleChange} />
+                            <InputField label="Min Stock" name="minStockLevel" type="number" value={formData.minStockLevel} onChange={handleChange} />
+                            <InputField label="Min Order" name="minOrderQty" type="number" value={formData.minOrderQty} onChange={handleChange} />
+                        </div>
+                        <div className="flex gap-6 mt-4 pt-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" name="isActive" checked={formData.isActive} onChange={handleChange} className="w-4 h-4 text-blue-600 rounded" />
+                                <span className="text-sm font-medium text-gray-700">Active</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" name="isPrescriptionRequired" checked={formData.isPrescriptionRequired} onChange={handleChange} className="w-4 h-4 text-blue-600 rounded" />
+                                <span className="text-sm font-medium text-gray-700">Prescription Required</span>
+                            </label>
+                        </div>
+                    </div>
+                </form>
+
+                <div className="p-6 border-t bg-gray-50 flex justify-end gap-3 sticky bottom-0">
+                    <button type="button" onClick={onClose} className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 font-medium">Cancel</button>
+                    <button type="button" onClick={handleSubmit} disabled={loading} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 flex items-center gap-2">
+                        {loading && <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>}
+                        {productId ? "Update Product" : "Add Product"}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const InputField = ({ label, name, type = "text", value, onChange, placeholder, required, disabled }) => (
+    <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{label} {required && "*"}</label>
+        <input type={type} name={name} value={value} onChange={onChange} placeholder={placeholder} disabled={disabled} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-gray-400 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed" required={required} />
+    </div>
+);
+
+const TextAreaField = ({ label, name, value, onChange, placeholder }) => (
+    <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+        <textarea name={name} value={value} onChange={onChange} placeholder={placeholder} rows="2" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-gray-400 resize-none" />
+    </div>
+);
+
+export default AddProductModal;

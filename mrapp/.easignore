@@ -1,0 +1,42 @@
+# Dependencies - EAS installs these from package-lock.json
+node_modules/
+
+# Git
+.git/
+.gitignore
+
+# Expo / Metro cache
+.expo/
+dist/
+web-build/
+.metro-health-check*
+
+# Debug and logs
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# OS and IDE
+.DS_Store
+*.pem
+Thumbs.db
+
+# Tests and docs (not needed for build)
+__tests__/
+**/*.test.*
+**/*.spec.*
+*.md
+docs/
+
+# Local env (use EAS env vars instead)
+.env
+.env.*
+!.env.example
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Optional: uncomment if you have large assets not needed at build time
+# assets/videos/
+# *.mp4
