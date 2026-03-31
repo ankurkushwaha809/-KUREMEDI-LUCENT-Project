@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import DOMPurify from "dompurify";
 import {
   ChevronLeft,
   ChevronRight,
@@ -110,6 +111,10 @@ export default function ProductDetailPage() {
   const total = (finalUnitPrice * qty).toLocaleString("en-IN");
   const showDiscount = discountPercent > 0;
   const formatMoney = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
+  const safeDescriptionHtml = DOMPurify.sanitize(String(product.description || ""), {
+    ALLOWED_TAGS: ["b", "strong", "i", "em", "u", "ul", "ol", "li", "p", "br"],
+    ALLOWED_ATTR: [],
+  });
   const taxLabel = isGstApplied
     ? `GST Applied (${gstPercentValue.toFixed(2)}%)`
     : "GST Not Applied";
@@ -365,9 +370,10 @@ export default function ProductDetailPage() {
             {product.description && (
               <div className="bg-white border border-gray-200 rounded-lg p-6">
                 <h3 className="font-bold text-gray-900 mb-4 uppercase text-sm">Product Highlights</h3>
-                <p className="text-gray-700 leading-relaxed text-sm">
-                  {product.description}
-                </p>
+                <div
+                  className="text-gray-700 leading-relaxed text-sm space-y-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+                  dangerouslySetInnerHTML={{ __html: safeDescriptionHtml }}
+                />
                 {product.expiryDate && (
                   <div className="mt-4 pt-4 border-t border-gray-200">
                     <p className="text-xs font-semibold text-red-600 bg-red-50 px-3 py-2 rounded">

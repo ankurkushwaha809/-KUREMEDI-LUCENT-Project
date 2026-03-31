@@ -4,6 +4,7 @@ import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Providers from "@/components/Providers";
+import GlobalKycPendingBanner from "@/components/GlobalKycPendingBanner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,6 +36,7 @@ export default function RootLayout({ children }) {
         <Providers>
           <Toaster position="top-center" toastOptions={{ duration: 4000 }} />
           <Header />
+          <GlobalKycPendingBanner />
           <main className="min-h-screen">
             {children}
           </main>

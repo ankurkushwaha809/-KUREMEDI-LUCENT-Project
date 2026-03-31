@@ -11,7 +11,7 @@ const KYC_STATUS_LABELS = {
 };
 
 export function KycBanner({ kyc }) {
-  if (!kyc || kyc === 'APPROVED') return null;
+  if (!kyc || kyc === 'APPROVED' || kyc === 'PENDING') return null;
 
   const isPending = kyc === 'PENDING';
   const isBlank = kyc === 'BLANK';

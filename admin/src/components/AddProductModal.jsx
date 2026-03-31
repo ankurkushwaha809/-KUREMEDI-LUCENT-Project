@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { X, Plus, Trash2 } from "lucide-react";
 import { useContextApi } from "../hooks/useContextApi";
 
@@ -312,7 +312,12 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
                         </div>
 
                         <InputField label="Product Name" name="productName" value={formData.productName} onChange={handleChange} required />
-                        <TextAreaField label="Composition" name="composition" value={formData.composition} onChange={handleChange} />
+                        <RichTextField
+                            label="Composition"
+                            value={formData.composition}
+                            onChange={(value) => setFormData((prev) => ({ ...prev, composition: value }))}
+                            placeholder="Write product composition. You can use bold, lists, and basic formatting."
+                        />
                         <InputField label="Packing" name="packing" value={formData.packing} onChange={handleChange} placeholder="e.g. 10 tabs, 1 pouch, Strip of 15" />
 
                         <div className="grid grid-cols-2 gap-4">
@@ -435,5 +440,73 @@ const TextAreaField = ({ label, name, value, onChange, placeholder }) => (
         <textarea name={name} value={value} onChange={onChange} placeholder={placeholder} rows="2" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-gray-400 resize-none" />
     </div>
 );
+
+const RichTextField = ({ label, value, onChange, placeholder }) => {
+    const editorRef = useRef(null);
+
+    useEffect(() => {
+        if (!editorRef.current) return;
+        const current = editorRef.current.innerHTML;
+        const next = value || "";
+        if (current !== next) {
+            editorRef.current.innerHTML = next;
+        }
+    }, [value]);
+
+    const runCommand = (command) => {
+        document.execCommand(command, false, null);
+        editorRef.current?.focus();
+        onChange(editorRef.current?.innerHTML || "");
+    };
+
+    const handleInput = () => {
+        onChange(editorRef.current?.innerHTML || "");
+    };
+
+    const handlePaste = (e) => {
+        e.preventDefault();
+        const text = e.clipboardData.getData("text/plain");
+        document.execCommand("insertText", false, text);
+        onChange(editorRef.current?.innerHTML || "");
+    };
+
+    return (
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+
+            <div className="border border-gray-300 rounded-lg overflow-hidden">
+                <div className="flex items-center gap-1 border-b bg-gray-50 p-2">
+                    <button type="button" onClick={() => runCommand("bold")} className="px-2 py-1 text-xs font-semibold rounded border border-gray-300 bg-white hover:bg-gray-100">B</button>
+                    <button type="button" onClick={() => runCommand("italic")} className="px-2 py-1 text-xs italic rounded border border-gray-300 bg-white hover:bg-gray-100">I</button>
+                    <button type="button" onClick={() => runCommand("underline")} className="px-2 py-1 text-xs underline rounded border border-gray-300 bg-white hover:bg-gray-100">U</button>
+                    <button type="button" onClick={() => runCommand("insertUnorderedList")} className="px-2 py-1 text-xs rounded border border-gray-300 bg-white hover:bg-gray-100">• List</button>
+                    <button type="button" onClick={() => runCommand("insertOrderedList")} className="px-2 py-1 text-xs rounded border border-gray-300 bg-white hover:bg-gray-100">1. List</button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (editorRef.current) editorRef.current.innerHTML = "";
+                            onChange("");
+                        }}
+                        className="ml-auto px-2 py-1 text-xs rounded border border-gray-300 bg-white hover:bg-gray-100"
+                    >
+                        Clear
+                    </button>
+                </div>
+
+                <div
+                    ref={editorRef}
+                    contentEditable
+                    onInput={handleInput}
+                    onPaste={handlePaste}
+                    data-placeholder={placeholder || "Write composition..."}
+                    className="min-h-[90px] max-h-56 overflow-y-auto px-3 py-2 focus:outline-none"
+                    style={{ whiteSpace: "pre-wrap" }}
+                />
+            </div>
+
+            <p className="text-xs text-gray-500 mt-1">Formatting supported: bold, italic, underline, bullets, numbering.</p>
+        </div>
+    );
+};
 
 export default AddProductModal;

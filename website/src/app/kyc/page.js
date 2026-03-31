@@ -3,7 +3,7 @@
 import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { useAppContext } from '@/context/context';
 import * as api from '@/api';
 import { showToast } from '@/utils/toast';
@@ -39,6 +39,7 @@ function KycPageInner() {
   const [gstFile, setGstFile] = useState(null);
   const [shopPhotoFile, setShopPhotoFile] = useState(null);
   const [cancelChequeFile, setCancelChequeFile] = useState(null);
+  const isKycPending = user?.kyc === 'PENDING';
 
   // Authentication Check
   if (!token || !user) {
@@ -73,8 +74,62 @@ function KycPageInner() {
     );
   }
 
+  // Pending Check - block page with fixed popup until admin decision
+  if (user.kyc === 'PENDING') {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="sticky top-0 bg-white border-b border-gray-200 z-10">
+          <div className="container mx-auto px-4 py-3 flex items-center gap-4">
+            <Link href="/profile" className="p-1 -ml-1 text-gray-700 hover:text-gray-900">
+              <ArrowLeft className="w-7 h-7" />
+            </Link>
+            <h1 className="text-lg font-semibold text-gray-900">KYC Verification</h1>
+          </div>
+        </div>
+
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] flex items-center justify-center px-4">
+          <div className="w-full max-w-lg rounded-2xl border border-amber-200 bg-white p-6 shadow-2xl">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100">
+              <ShieldAlert className="h-7 w-7 text-amber-700" />
+            </div>
+            <h2 className="text-center text-2xl font-bold text-gray-900">KYC Submitted</h2>
+            <p className="mt-3 text-center text-sm text-gray-600 leading-relaxed">
+              Your documents are under admin review. KYC form is locked right now.
+              You can submit again only if admin rejects your request.
+            </p>
+
+            <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-center text-sm font-medium text-amber-800">
+                Please wait for admin approval.
+              </p>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <Link
+                href="/"
+                className="flex-1 rounded-xl border border-gray-300 px-4 py-3 text-center text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Go to Home
+              </Link>
+              <Link
+                href="/profile"
+                className="flex-1 rounded-xl bg-teal-700 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-teal-800"
+              >
+                Go to Profile
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isKycPending) {
+      showToast('KYC already submitted. Please wait for admin approval.', 'info');
+      return;
+    }
     const err = {};
     if (!drugLicenseNumber.trim()) err.drugLicenseNumber = 'Drug license number is required';
     if (!drugLicenseFile) err.drugLicenseFile = 'Upload drug license document (required)';
