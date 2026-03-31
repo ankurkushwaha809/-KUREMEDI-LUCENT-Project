@@ -1,6 +1,6 @@
 {
-  "routes": [
-    { "handle": "filesystem" },
-    { "src": "/.*", "dest": "/" }
-  ]
+  "buildCommand": "cd website && npm install --legacy-peer-deps && npm run build",
+  "outputDirectory": "website/.next",
+  "devCommand": "cd website && npm run dev",
+  "installCommand": "npm install --legacy-peer-deps"
 }
