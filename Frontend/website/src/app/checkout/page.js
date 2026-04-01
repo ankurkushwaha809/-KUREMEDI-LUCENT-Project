@@ -18,6 +18,14 @@ import { useAppContext } from "@/context/context";
 import * as api from "@/api";
 import { showToast } from "@/utils/toast";
 
+const unlockPageScroll = () => {
+  if (typeof document === "undefined") return;
+  document.body.style.overflow = "";
+  document.body.style.position = "";
+  document.body.style.width = "";
+  document.documentElement.style.overflow = "";
+};
+
 const toPaise = (value) => Math.round((Number(value) || 0) * 100);
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-IN", {
@@ -85,6 +93,12 @@ export default function CheckoutPage() {
         setMinimumCheckoutAmount(Number.isFinite(amount) ? Math.max(0, amount) : 0);
       })
       .catch(() => setMinimumCheckoutAmount(0));
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      unlockPageScroll();
+    };
   }, []);
 
   useEffect(() => {
@@ -299,6 +313,7 @@ export default function CheckoutPage() {
 
   const handleRazorpaySuccess = async (paymentId, signature) => {
     if (!paymentModal) return;
+    unlockPageScroll();
     setPaymentModal(null);
     try {
       await api.verifyPayment({
@@ -310,6 +325,7 @@ export default function CheckoutPage() {
       showToast("Payment successful! Order placed.", "success");
       router.push("/orders");
     } catch (err) {
+      unlockPageScroll();
       setPaymentModal(null);
       showToast(err?.data?.message || err?.message || "Payment verification failed", "error");
     }
@@ -609,7 +625,10 @@ export default function CheckoutPage() {
         <RazorpayModal
           paymentModal={paymentModal}
           onSuccess={handleRazorpaySuccess}
-          onClose={() => setPaymentModal(null)}
+          onClose={() => {
+            unlockPageScroll();
+            setPaymentModal(null);
+          }}
         />
       )}
     </>

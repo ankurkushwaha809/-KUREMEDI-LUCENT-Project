@@ -95,6 +95,16 @@ export default function OrdersPage() {
   }, [token]);
 
   useEffect(() => {
+    // Ensure scroll is restored if a previous modal/page left it locked.
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.documentElement.style.overflow = '';
+    }
+  }, []);
+
+  useEffect(() => {
     if (!token) {
       setLoading(false);
       return;
