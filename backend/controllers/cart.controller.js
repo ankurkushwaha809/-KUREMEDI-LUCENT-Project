@@ -14,7 +14,12 @@ export const addToCart = async (req, res) => {
     if (!productId)
       return res.status(400).json({ success: false, message: "productId is required" });
 
-    const qty = quantity || 1;
+    const qty = Number(quantity ?? 1);
+    if (!Number.isInteger(qty) || qty < 1)
+      return res.status(400).json({
+        success: false,
+        message: "Quantity must be a positive integer",
+      });
 
     const product = await Product.findById(productId);
     if (!product || !product.isActive)
@@ -23,6 +28,12 @@ export const addToCart = async (req, res) => {
     let cart = await Cart.findOne({ user: req.user._id });
 
     if (!cart) {
+      if (qty > product.stockQuantity) {
+        return res.status(400).json({
+          success: false,
+          message: `Only ${product.stockQuantity} items in stock. Cannot add ${qty} items.`,
+        });
+      }
       cart = await Cart.create({
         user: req.user._id,
         items: [{ product: productId, quantity: qty }],
@@ -33,8 +44,21 @@ export const addToCart = async (req, res) => {
       );
 
       if (itemIndex > -1) {
-        cart.items[itemIndex].quantity += qty;
+        const nextQty = cart.items[itemIndex].quantity + qty;
+        if (nextQty > product.stockQuantity) {
+          return res.status(400).json({
+            success: false,
+            message: `Only ${product.stockQuantity} items in stock. You already have ${cart.items[itemIndex].quantity} in cart.`,
+          });
+        }
+        cart.items[itemIndex].quantity = nextQty;
       } else {
+        if (qty > product.stockQuantity) {
+          return res.status(400).json({
+            success: false,
+            message: `Only ${product.stockQuantity} items in stock. Cannot add ${qty} items.`,
+          });
+        }
         cart.items.push({ product: productId, quantity: qty });
       }
 
@@ -42,7 +66,18 @@ export const addToCart = async (req, res) => {
     }
 
     const cartPopulated = await Cart.findById(cart._id).populate("items.product");
-    res.json({ success: true, message: "Added to cart", cart: cartPopulated || cart });
+    
+    // Warn if stock is low
+    const warning = product.stockQuantity <= product.minStockLevel
+      ? `Low stock warning: Only ${product.stockQuantity} items remaining`
+      : null;
+    
+    res.json({
+      success: true,
+      message: "Added to cart",
+      warning,
+      cart: cartPopulated || cart,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: "Server error" });
@@ -61,6 +96,44 @@ export const getMyCart = async (req, res) => {
     );
 
     if (!cart) return res.json({ success: true, items: [] });
+
+    let cartChanged = false;
+    const normalizedItems = [];
+
+    for (const item of cart.items || []) {
+      const product = item?.product;
+      const currentQty = Number(item?.quantity || 0);
+
+      if (!product || !product._id || !product.isActive) {
+        cartChanged = true;
+        continue;
+      }
+
+      const availableStock = Number(product.stockQuantity ?? 0);
+      if (availableStock <= 0) {
+        cartChanged = true;
+        continue;
+      }
+
+      const clampedQty = Math.max(1, Math.min(currentQty, availableStock));
+      if (clampedQty !== currentQty) {
+        cartChanged = true;
+      }
+
+      normalizedItems.push({
+        product: product._id,
+        quantity: clampedQty,
+      });
+    }
+
+    if (cartChanged) {
+      cart.items = normalizedItems;
+      await cart.save();
+      await cart.populate(
+        "items.product",
+        "productName name mrp sellingPrice discountPercent gstPercent gstMode stockQuantity minOrderQty productImages isActive",
+      );
+    }
 
     const cartObj = cart.toObject();
     cartObj.items = (cartObj.items || []).map((item) => {
@@ -101,9 +174,14 @@ export const getMyCart = async (req, res) => {
 export const updateCartQty = async (req, res) => {
   try {
     const { productId, quantity } = req.body;
+    const qty = Number(quantity);
 
-    if (!productId || !quantity)
+    if (!productId || Number.isNaN(qty))
       return res.status(400).json({ message: "productId & quantity required" });
+
+    if (!Number.isInteger(qty) || qty < 1) {
+      return res.status(400).json({ message: "Quantity must be a positive integer" });
+    }
 
     const cart = await Cart.findOne({ user: req.user._id });
     if (!cart) return res.status(404).json({ message: "Cart not found" });
@@ -113,11 +191,26 @@ export const updateCartQty = async (req, res) => {
     if (!item)
       return res.status(404).json({ message: "Item not found in cart" });
 
-    item.quantity = quantity;
+    // Validate quantity against stock
+    const product = await Product.findById(productId);
+    if (!product) return res.status(404).json({ message: "Product not found" });
+
+    if (qty > product.stockQuantity) {
+      return res.status(400).json({
+        message: `Only ${product.stockQuantity} items in stock. Cannot update to ${qty} items.`,
+      });
+    }
+
+    item.quantity = qty;
 
     await cart.save();
 
-    res.json({ message: "Quantity updated", cart });
+    // Warn if stock is low
+    const warning = product.stockQuantity <= product.minStockLevel
+      ? `Low stock warning: Only ${product.stockQuantity} items remaining`
+      : null;
+
+    res.json({ message: "Quantity updated", warning, cart });
   } catch (err) {
     res.status(500).json({ message: "Server error" });
   }

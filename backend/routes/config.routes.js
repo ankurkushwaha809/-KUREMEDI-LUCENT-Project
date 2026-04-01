@@ -5,6 +5,7 @@ const router = express.Router();
 
 const REFERRAL_AMOUNT_KEY = "referralBonusAmount";
 const REFERRAL_REWARDS_KEY = "referralRewards";
+const MIN_CHECKOUT_AMOUNT_KEY = "minimumCheckoutAmount";
 
 const DEFAULT_REWARDS = {
   retailerReferrer: 50,       // Retailer → Retailer: referrer gets ₹50
@@ -23,6 +24,13 @@ async function getReferralRewards() {
     return { ...DEFAULT_REWARDS, ...v };
   }
   return { ...DEFAULT_REWARDS };
+}
+
+async function getMinimumCheckoutAmount() {
+  const doc = await Config.findOne({ key: MIN_CHECKOUT_AMOUNT_KEY });
+  const value = Number(doc?.value);
+  if (!Number.isFinite(value) || value < 0) return 0;
+  return Math.round(value * 100) / 100;
 }
 
 /**
@@ -130,6 +138,47 @@ router.put("/referral-rewards", async (req, res) => {
     res.json({ message: "Referral rewards updated", rewards });
   } catch (err) {
     console.error("set referral rewards:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/**
+ * GET /api/config/minimum-checkout-amount
+ * Public: Get minimum checkout amount in INR.
+ */
+router.get("/minimum-checkout-amount", async (req, res) => {
+  try {
+    const amount = await getMinimumCheckoutAmount();
+    res.json({ amount });
+  } catch (err) {
+    console.error("get minimum checkout amount:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/**
+ * PUT /api/config/minimum-checkout-amount
+ * Admin: Set minimum checkout amount in INR.
+ * Body: { amount }
+ */
+router.put("/minimum-checkout-amount", async (req, res) => {
+  try {
+    const amount = Math.round((Number(req.body.amount) || 0) * 100) / 100;
+    if (amount < 0 || amount > 1000000) {
+      return res.status(400).json({
+        message: "Amount must be between 0 and ₹10,00,000",
+      });
+    }
+
+    await Config.findOneAndUpdate(
+      { key: MIN_CHECKOUT_AMOUNT_KEY },
+      { value: amount },
+      { upsert: true, new: true }
+    );
+
+    res.json({ message: "Minimum checkout amount updated", amount });
+  } catch (err) {
+    console.error("set minimum checkout amount:", err);
     res.status(500).json({ message: "Server error" });
   }
 });

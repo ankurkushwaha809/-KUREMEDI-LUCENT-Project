@@ -5,8 +5,6 @@ import Recharge from "../model/Recharge.js";
 import Wallet from "../model/Wallet.js";
 
 const router = express.Router();
-const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
-const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 
 /**
  * GET /api/wallet
@@ -48,6 +46,9 @@ router.get("/", protect, async (req, res) => {
  */
 router.post("/recharge", protect, async (req, res) => {
   try {
+    const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
+    const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
+
     const amount = Math.round(Number(req.body.amount) || 0);
     if (amount < 1) {
       return res.status(400).json({ message: "Minimum recharge amount is ₹1" });
@@ -122,10 +123,11 @@ router.post("/recharge/verify", protect, async (req, res) => {
     }
 
     let verified = false;
-    if (RAZORPAY_KEY_SECRET) {
+    const RAZORPAY_KEY_SECRET_VERIFY = process.env.RAZORPAY_KEY_SECRET;
+    if (RAZORPAY_KEY_SECRET_VERIFY) {
       const body = razorpayOrderId + "|" + razorpayPaymentId;
       const expected = crypto
-        .createHmac("sha256", RAZORPAY_KEY_SECRET)
+        .createHmac("sha256", RAZORPAY_KEY_SECRET_VERIFY)
         .update(body)
         .digest("hex");
       verified = expected === razorpaySignature;

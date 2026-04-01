@@ -4,6 +4,7 @@ import Order from "../model/Order.js";
 import Product from "../model/Product.js";
 import User from "../model/User.js";
 import Wallet from "../model/Wallet.js";
+import Config from "../model/Config.js";
 import {
   createShiprocketOrder,
   mapOrderToShiprocketPayload,
@@ -14,8 +15,7 @@ import {
 } from "../config/shiprocket.js";
 import { calculateLinePricing } from "../utils/pricing.js";
 
-const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
-const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
+const MIN_CHECKOUT_AMOUNT_KEY = "minimumCheckoutAmount";
 
 /**
  * CREATE PAYMENT ORDER (Checkout - Online / Wallet / Split)
@@ -30,11 +30,122 @@ const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
  */
 export const createPaymentOrder = async (req, res) => {
   try {
+    const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
+    const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
+
+    if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
+      return res.status(503).json({
+        message: "Payment gateway not configured",
+        code: "PAYMENT_GATEWAY_NOT_CONFIGURED",
+      });
+    }
+
     const { shippingAddress, notes, walletAmount: reqWalletAmount = 0 } = req.body;
+
+    if (!shippingAddress || typeof shippingAddress !== "object") {
+      return res.status(400).json({
+        message: "Shipping address is required",
+        code: "SHIPPING_ADDRESS_REQUIRED",
+      });
+    }
+
+    const normalizedShippingAddress = {
+      shopName: String(shippingAddress.shopName || "").trim(),
+      address: String(shippingAddress.address || "").trim(),
+      phone: String(shippingAddress.phone || "").trim(),
+      city: String(shippingAddress.city || "").trim(),
+      state: String(shippingAddress.state || "").trim(),
+      pincode: String(shippingAddress.pincode || "").trim(),
+    };
+
+    if (
+      !normalizedShippingAddress.address ||
+      !normalizedShippingAddress.city ||
+      !normalizedShippingAddress.pincode ||
+      !normalizedShippingAddress.phone
+    ) {
+      return res.status(400).json({
+        message: "Address, city, pincode and phone are required",
+        code: "INVALID_SHIPPING_ADDRESS",
+      });
+    }
 
     const cart = await Cart.findOne({ user: req.user._id }).populate("items.product");
     if (!cart || cart.items.length === 0) {
-      return res.status(400).json({ message: "Cart is empty" });
+      return res.status(400).json({ message: "Cart is empty", code: "CART_EMPTY" });
+    }
+
+    let cartAdjusted = false;
+    const adjustments = [];
+    const nextCartItems = [];
+
+    for (const item of cart.items) {
+      const product = item.product;
+      const requestedQty = Math.max(1, Number(item.quantity || 1));
+
+      if (!product || !product.isActive) {
+        cartAdjusted = true;
+        adjustments.push({
+          productId: product?._id ? String(product._id) : null,
+          productName: product?.productName || "Unknown product",
+          previousQty: requestedQty,
+          newQty: 0,
+          reason: "product_not_available",
+        });
+        continue;
+      }
+
+      const availableStock = Number(product.stockQuantity ?? 0);
+
+      if (availableStock <= 0) {
+        cartAdjusted = true;
+        adjustments.push({
+          productId: String(product._id),
+          productName: product.productName,
+          previousQty: requestedQty,
+          newQty: 0,
+          reason: "out_of_stock",
+        });
+        continue;
+      }
+
+      if (requestedQty > availableStock) {
+        cartAdjusted = true;
+        adjustments.push({
+          productId: String(product._id),
+          productName: product.productName,
+          previousQty: requestedQty,
+          newQty: availableStock,
+          reason: "reduced_to_available_stock",
+        });
+        item.quantity = availableStock;
+      }
+
+      nextCartItems.push(item);
+    }
+
+    if (cartAdjusted) {
+      cart.items = nextCartItems.map((item) => ({
+        product: item.product?._id || item.product,
+        quantity: item.quantity,
+      }));
+      await cart.save();
+      await cart.populate("items.product");
+    }
+
+    if (!cart.items.length) {
+      const hasUnavailableProducts = adjustments.some(
+        (a) => a?.reason === "product_not_available" || a?.reason === "out_of_stock",
+      );
+      return res.status(200).json({
+        success: false,
+        requiresCartReview: true,
+        message: hasUnavailableProducts
+          ? "Some products are no longer available. Please review your cart."
+          : "All items in cart are out of stock",
+        code: "CART_EMPTY_AFTER_SYNC",
+        adjustments,
+      });
     }
 
     let totalAmount = 0;
@@ -43,14 +154,6 @@ export const createPaymentOrder = async (req, res) => {
 
     for (const item of cart.items) {
       const product = item.product;
-      if (!product || !product.isActive) {
-        return res.status(400).json({ message: `Product not available` });
-      }
-      if (product.stockQuantity < item.quantity) {
-        return res.status(400).json({
-          message: `Insufficient stock for ${product.productName}`,
-        });
-      }
 
       const pricing = calculateLinePricing(
         {
@@ -80,11 +183,34 @@ export const createPaymentOrder = async (req, res) => {
       });
     }
 
-    const payableAmountRupee = totalAmount + totalGstAmount;
-    const payableAmountPaise = Math.round(payableAmountRupee * 100);
+    const payableAmountRupee = Math.round((totalAmount + totalGstAmount) * 100) / 100;
 
-    // Validate wallet usage
-    let walletAmount = Math.round((reqWalletAmount || 0) * 100) / 100;
+    const minCheckoutDoc = await Config.findOne({ key: MIN_CHECKOUT_AMOUNT_KEY });
+    const minCheckoutAmount = Math.round(
+      Math.max(0, Number(minCheckoutDoc?.value) || 0) * 100
+    ) / 100;
+
+    if (minCheckoutAmount > 0 && payableAmountRupee < minCheckoutAmount) {
+      return res.status(400).json({
+        message: `Minimum checkout amount is ₹${minCheckoutAmount.toFixed(2)}. Please add more items to continue.`,
+        code: "MIN_CHECKOUT_NOT_MET",
+        minimumCheckoutAmount: minCheckoutAmount,
+        currentCheckoutAmount: payableAmountRupee,
+        shortBy: Math.round((minCheckoutAmount - payableAmountRupee) * 100) / 100,
+      });
+    }
+
+    if (payableAmountRupee <= 0) {
+      return res.status(400).json({
+        message: "Unable to create order for zero amount",
+        code: "INVALID_ORDER_AMOUNT",
+      });
+    }
+
+    const parsedWalletAmount = Number(reqWalletAmount);
+    let walletAmount = Number.isFinite(parsedWalletAmount)
+      ? Math.round(parsedWalletAmount * 100) / 100
+      : 0;
     if (walletAmount < 0) walletAmount = 0;
     if (walletAmount > payableAmountRupee) walletAmount = payableAmountRupee;
 
@@ -93,9 +219,7 @@ export const createPaymentOrder = async (req, res) => {
       wallet = await Wallet.findOne({ user: req.user._id });
       if (!wallet) wallet = await Wallet.create({ user: req.user._id, balance: 0 });
       if (wallet.balance < walletAmount) {
-        return res.status(400).json({
-          message: `Insufficient wallet balance. Available: ₹${wallet.balance?.toFixed(2) ?? 0}`,
-        });
+        walletAmount = Math.round((wallet.balance || 0) * 100) / 100;
       }
     }
 
@@ -103,6 +227,36 @@ export const createPaymentOrder = async (req, res) => {
     const razorpayAmountPaise = Math.round(razorpayAmountRupee * 100);
 
     const user = await User.findById(req.user._id);
+
+    // Reuse a very recent pending Razorpay order to avoid duplicate order creation
+    // when users tap "Place Order" repeatedly.
+    if (razorpayAmountRupee > 0) {
+      const recentThreshold = new Date(Date.now() - 15 * 60 * 1000);
+      const recentPendingOrder = await Order.findOne({
+        user: req.user._id,
+        status: "PENDING",
+        paymentMethod: "ONLINE",
+        createdAt: { $gte: recentThreshold },
+        razorpayAmount: razorpayAmountRupee,
+        walletAmount,
+        razorpayOrderId: { $exists: true, $ne: null },
+      }).sort({ createdAt: -1 });
+
+      if (recentPendingOrder) {
+        return res.status(200).json({
+          message: "Resume pending payment",
+          orderId: recentPendingOrder._id,
+          razorpayOrderId: recentPendingOrder.razorpayOrderId,
+          amount: recentPendingOrder.razorpayAmount,
+          walletUsed: recentPendingOrder.walletAmount || 0,
+          cartAdjusted,
+          adjustments,
+          currency: "INR",
+          keyId: RAZORPAY_KEY_ID || null,
+          reusedPendingOrder: true,
+        });
+      }
+    }
 
     const order = await Order.create({
       user: req.user._id,
@@ -115,7 +269,7 @@ export const createPaymentOrder = async (req, res) => {
       razorpayAmount: razorpayAmountRupee,
       status: walletAmount >= payableAmountRupee ? "PLACED" : "PENDING",
       paymentMethod: "ONLINE",
-      shippingAddress: shippingAddress || {},
+      shippingAddress: normalizedShippingAddress,
       notes,
     });
 
@@ -163,45 +317,67 @@ export const createPaymentOrder = async (req, res) => {
         orderId: order._id,
         paidByWallet: true,
         walletUsed: walletAmount,
+        cartAdjusted,
+        adjustments,
       });
     }
 
-    // Razorpay for remainder (or full if no wallet)
-    let razorpayOrderId = null;
-    if (RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET && razorpayAmountPaise > 0) {
-      const response = await fetch("https://api.razorpay.com/v1/orders", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Basic ${Buffer.from(RAZORPAY_KEY_ID + ":" + RAZORPAY_KEY_SECRET).toString("base64")}`,
-        },
-        body: JSON.stringify({
-          amount: razorpayAmountPaise,
-          currency: "INR",
-          receipt: order._id.toString(),
-        }),
+    if (razorpayAmountPaise <= 0) {
+      return res.status(201).json({
+        message: "Order created",
+        orderId: order._id,
+        amount: 0,
+        walletUsed: walletAmount,
+        paidByWallet: false,
+        cartAdjusted,
+        adjustments,
+        currency: "INR",
+        keyId: RAZORPAY_KEY_ID,
       });
-
-      const data = await response.json();
-      if (data.id) {
-        razorpayOrderId = data.id;
-        order.razorpayOrderId = razorpayOrderId;
-        await order.save();
-      }
     }
+
+    const gatewayRes = await fetch("https://api.razorpay.com/v1/orders", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Basic ${Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64")}`,
+      },
+      body: JSON.stringify({
+        amount: razorpayAmountPaise,
+        currency: "INR",
+        receipt: order._id.toString(),
+      }),
+    });
+
+    const gatewayData = await gatewayRes.json();
+    if (!gatewayRes.ok || !gatewayData?.id) {
+      await Order.findByIdAndDelete(order._id);
+      const gatewayMessage = gatewayData?.error?.description || "Failed to create Razorpay order";
+      const isRateLimited = /too many requests|rate limit/i.test(gatewayMessage);
+      return res.status(isRateLimited ? 429 : 502).json({
+        message: gatewayMessage,
+        code: isRateLimited ? "RAZORPAY_RATE_LIMIT" : "RAZORPAY_CREATE_ORDER_FAILED",
+        retryable: isRateLimited,
+      });
+    }
+
+    order.razorpayOrderId = gatewayData.id;
+    await order.save();
 
     res.status(201).json({
       message: "Order created. Complete payment to confirm.",
       orderId: order._id,
-      razorpayOrderId,
+      razorpayOrderId: gatewayData.id,
       amount: razorpayAmountRupee,
       walletUsed: walletAmount,
+      cartAdjusted,
+      adjustments,
       currency: "INR",
       keyId: RAZORPAY_KEY_ID || null,
     });
   } catch (err) {
     console.error("createPaymentOrder:", err);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Server error", code: "CREATE_ORDER_FAILED" });
   }
 };
 
@@ -213,10 +389,22 @@ export const createPaymentOrder = async (req, res) => {
  */
 export const verifyPayment = async (req, res) => {
   try {
+    const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
+
+    if (!RAZORPAY_KEY_SECRET) {
+      return res.status(503).json({
+        message: "Payment gateway not configured",
+        code: "PAYMENT_GATEWAY_NOT_CONFIGURED",
+      });
+    }
+
     const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
 
     if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
-      return res.status(400).json({ message: "Missing payment details" });
+      return res.status(400).json({
+        message: "Missing payment details",
+        code: "MISSING_PAYMENT_DETAILS",
+      });
     }
 
     const order = await Order.findOne({
@@ -226,23 +414,24 @@ export const verifyPayment = async (req, res) => {
     }).populate("items.product");
 
     if (!order) {
-      return res.status(404).json({ message: "Order not found or already processed" });
+      return res.status(404).json({
+        message: "Order not found or already processed",
+        code: "ORDER_NOT_FOUND",
+      });
     }
 
-    let verified = false;
-    if (RAZORPAY_KEY_SECRET) {
-      const body = razorpayOrderId + "|" + razorpayPaymentId;
-      const expected = crypto
-        .createHmac("sha256", RAZORPAY_KEY_SECRET)
-        .update(body)
-        .digest("hex");
-      verified = expected === razorpaySignature;
-    } else {
-      verified = process.env.NODE_ENV !== "production";
-    }
+    const body = razorpayOrderId + "|" + razorpayPaymentId;
+    const expected = crypto
+      .createHmac("sha256", RAZORPAY_KEY_SECRET)
+      .update(body)
+      .digest("hex");
+    const verified = expected === razorpaySignature;
 
     if (!verified) {
-      return res.status(400).json({ message: "Payment verification failed" });
+      return res.status(400).json({
+        message: "Payment verification failed",
+        code: "PAYMENT_VERIFICATION_FAILED",
+      });
     }
 
     order.status = "PLACED";
@@ -268,10 +457,11 @@ export const verifyPayment = async (req, res) => {
     const walletAmount = order.walletAmount ?? 0;
     if (walletAmount > 0) {
       const wallet = await Wallet.findOne({ user: req.user._id });
-      if (wallet && wallet.balance >= walletAmount) {
-        wallet.balance = Math.max(0, wallet.balance - walletAmount);
+      if (wallet) {
+        const debitAmount = Math.min(wallet.balance || 0, walletAmount);
+        wallet.balance = Math.max(0, wallet.balance - debitAmount);
         wallet.transactions.push({
-          amount: -walletAmount,
+          amount: -debitAmount,
           type: "DEBIT",
           description: "Order payment (split)",
           order: order._id,
@@ -304,7 +494,7 @@ export const verifyPayment = async (req, res) => {
     });
   } catch (err) {
     console.error("verifyPayment:", err);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Server error", code: "VERIFY_PAYMENT_FAILED" });
   }
 };
 

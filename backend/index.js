@@ -6,6 +6,10 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, ".env") });
+
 import connectDB from "./config/db.js";
 import { attachSupportWs } from "./supportWs.js";
 import productRoutes from "./routes/productRoutes.js";
@@ -20,7 +24,7 @@ import walletRoutes from "./routes/wallet.routes.js";
 import configRoutes from "./routes/config.routes.js";
 import agentRoutes from "./routes/agent.routes.js";
 import supportRoutes from "./routes/support.routes.js";
-dotenv.config();
+
 connectDB();
 
 if (!fs.existsSync("uploads")) fs.mkdirSync("uploads", { recursive: true });
@@ -38,10 +42,6 @@ if (!fs.existsSync("uploads/agents"))
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Fix __dirname in ES Modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 // Middlewares
 app.use(cors({
   origin: "*",
@@ -57,7 +57,17 @@ app.get("/", (req, res) => {
 
 // Product Routes
 app.use("/api/products", productRoutes);
-app.use("/uploads", express.static(path.join(__dirname, "uploads"))); // ✅ fixed
+const uploadsDir = path.join(__dirname, "uploads");
+app.use("/uploads", express.static(uploadsDir));
+app.get("/uploads/*filePath", (req, res) => {
+  const fallbackBase = process.env.UPLOAD_FALLBACK_BASE || "https://api.kuremedi.com";
+  // Avoid redirect loops if fallback is accidentally set to local host.
+  if (/localhost|127\.0\.0\.1/.test(fallbackBase)) {
+    return res.status(404).json({ message: "File not found" });
+  }
+  const cleanBase = String(fallbackBase).replace(/\/+$/, "");
+  return res.redirect(`${cleanBase}${req.originalUrl}`);
+});
 app.use("/api/auth", authRoutes);
 
 app.use("/api/categories", categoriesRouter);
