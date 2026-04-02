@@ -1,0 +1,23 @@
+<svg width="1600" height="640" viewBox="0 0 1600 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="1600" y2="640" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#075985"/>
+      <stop offset="1" stop-color="#0EA5E9"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="640" rx="38" fill="url(#bg2)"/>
+  <path d="M0 520C200 450 360 580 560 520C760 460 880 360 1100 410C1290 452 1450 550 1600 500V640H0V520Z" fill="#E0F2FE" fill-opacity="0.3"/>
+  <path d="M0 560C220 510 390 620 620 560C830 505 980 420 1200 470C1380 510 1500 590 1600 560V640H0V560Z" fill="#FFFFFF" fill-opacity="0.3"/>
+
+  <text x="100" y="240" fill="#ECFEFF" font-family="Arial, sans-serif" font-size="112" font-weight="800">FAST DELIVERY</text>
+  <text x="100" y="345" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="72" font-weight="700">Trusted medicine partner</text>
+  <text x="100" y="420" fill="#BAE6FD" font-family="Arial, sans-serif" font-size="48" font-weight="600">Quality brands • Secure orders • Support anytime</text>
+
+  <g transform="translate(1135 158)">
+    <rect width="330" height="330" rx="44" fill="#FFFFFF" fill-opacity="0.16"/>
+    <rect x="50" y="54" width="230" height="230" rx="34" fill="#FFFFFF"/>
+    <rect x="106" y="148" width="118" height="42" rx="12" fill="#0EA5E9"/>
+    <rect x="144" y="110" width="42" height="118" rx="12" fill="#0EA5E9"/>
+  </g>
+</svg>

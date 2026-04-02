@@ -1,0 +1,33 @@
+<svg width="1600" height="640" viewBox="0 0 1600 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg1" x1="0" y1="0" x2="1600" y2="640" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B5ED7"/>
+      <stop offset="1" stop-color="#31B8E6"/>
+    </linearGradient>
+    <filter id="blur1" x="0" y="0" width="1600" height="640" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="80"/>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="640" rx="38" fill="url(#bg1)"/>
+  <circle cx="1350" cy="130" r="180" fill="#FFFFFF" fill-opacity="0.2" filter="url(#blur1)"/>
+  <circle cx="230" cy="560" r="220" fill="#A7F3FF" fill-opacity="0.2" filter="url(#blur1)"/>
+
+  <g fill="#FFFFFF" fill-opacity="0.92">
+    <rect x="980" y="220" width="56" height="56" rx="28"/>
+    <rect x="1080" y="180" width="42" height="42" rx="21"/>
+    <rect x="1160" y="260" width="30" height="30" rx="15"/>
+    <rect x="1240" y="210" width="64" height="64" rx="32"/>
+    <rect x="1110" y="320" width="48" height="48" rx="24"/>
+  </g>
+
+  <text x="110" y="255" fill="#DDF4FF" font-family="Arial, sans-serif" font-size="140" font-weight="800" letter-spacing="4">MEDICINES</text>
+  <text x="110" y="360" fill="#052C93" font-family="Arial, sans-serif" font-size="92" font-weight="900">AT YOUR</text>
+  <text x="110" y="450" fill="#052C93" font-family="Arial, sans-serif" font-size="92" font-weight="900">FINGERTIPS</text>
+
+  <g transform="translate(1270 455) rotate(-12)">
+    <rect x="0" y="0" width="250" height="120" rx="34" fill="#F97316"/>
+    <rect x="24" y="24" width="200" height="72" rx="24" fill="#FDBA74"/>
+    <rect x="140" y="30" width="52" height="60" rx="10" fill="#FFFFFF"/>
+  </g>
+</svg>

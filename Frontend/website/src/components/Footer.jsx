@@ -3,10 +3,12 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Apple, Smartphone, ShieldCheck, Phone, Mail, MapPin } from 'lucide-react';
+import { ShieldCheck, Phone, Mail } from 'lucide-react';
 
 export default function Footer() {
     const currentYear = new Date().getFullYear();
+    const appStoreUrl = process.env.NEXT_PUBLIC_APP_STORE_URL || 'https://www.apple.com/app-store/';
+    const playStoreUrl = process.env.NEXT_PUBLIC_PLAY_STORE_URL || 'https://play.google.com/store';
 
     return (
         <footer className="relative bg-gradient-to-br from-teal-900 via-teal-800 to-teal-950 text-white overflow-hidden">
@@ -51,22 +53,32 @@ export default function Footer() {
 
                         <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-end">
                             {/* App Store Button */}
-                            <button className="group flex items-center gap-3 bg-black hover:bg-gray-900 text-white px-5 py-3 rounded-xl transition-all hover:scale-105 shadow-lg border border-white/10">
-                                <img src="/appstore.png" alt="App Store" className="w-8 h-8 fill-current" />
+                            <a
+                                href={appStoreUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="group flex items-center gap-3 bg-black hover:bg-gray-900 text-white px-5 py-3 rounded-xl transition-all hover:scale-105 shadow-lg border border-white/10"
+                            >
+                                <Image src="/appstore.png" alt="App Store" width={32} height={32} className="w-8 h-8" />
                                 <div className="text-left">
                                     <div className="text-[10px] uppercase font-medium text-gray-400 group-hover:text-gray-300">Download on the</div>
                                     <div className="text-sm font-bold leading-none">App Store</div>
                                 </div>
-                            </button>
+                            </a>
 
                             {/* Play Store Button */}
-                            <button className="group flex items-center gap-3 bg-black hover:bg-gray-900 text-white px-5 py-3 rounded-xl transition-all hover:scale-105 shadow-lg border border-white/10">
-                                <img src="/playstore.png" alt="Play Store" className="w-8 h-8 text-teal-400" />
+                            <a
+                                href={playStoreUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="group flex items-center gap-3 bg-black hover:bg-gray-900 text-white px-5 py-3 rounded-xl transition-all hover:scale-105 shadow-lg border border-white/10"
+                            >
+                                <Image src="/playstore.png" alt="Play Store" width={32} height={32} className="w-8 h-8" />
                                 <div className="text-left">
                                     <div className="text-[10px] uppercase font-medium text-gray-400 group-hover:text-gray-300">Get it on</div>
                                     <div className="text-sm font-bold leading-none">Google Play</div>
                                 </div>
-                            </button>
+                            </a>
                         </div>
                     </div>
                 </div>

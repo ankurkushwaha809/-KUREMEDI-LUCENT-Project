@@ -7,10 +7,18 @@ import {
   ChevronLeft,
   Plus,
   Minus,
-  Search
+  Search,
+  FileText,
+  FlaskConical,
+  Stethoscope,
+  Pill,
+  ShieldPlus,
+  BookOpenText,
+  BadgePercent,
 } from "lucide-react";
 import { useAppContext } from "@/context/context";
 import { KycBanner } from "@/components/KycBanner";
+import { ProductCard } from "@/components/ProductCard";
 import { getProductSlug, getCategorySlug, getBrandSlug } from "@/utils/product";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -25,7 +33,44 @@ import {
   SkeletonProductRow,
 } from "@/components/Skeleton";
 
-const BANNERS = ["/banner.jpeg", "/banner.jpeg", "/banner.jpeg"];
+const BANNERS = [
+  "/banners/medicine-banner-1.svg",
+  "/banners/medicine-banner-2.svg",
+  "/banners/medicine-banner-3.svg",
+];
+
+const QUICK_ACTIONS = [
+  {
+    title: "Cipla",
+    imageUrl: "https://www.cipla.com/sites/default/files/cipla-logo.png",
+    href: "/products",
+  },
+  {
+    title: "Mankind",
+    imageUrl: "https://www.mankindpharma.com/wp-content/uploads/2024/12/favicon.png",
+    href: "/brands",
+  },
+  {
+    title: "Sun Pharma",
+    imageUrl: "https://sunpharma.com/wp-content/uploads/2022/06/cropped-android-chrome-512x512-1-32x32.png",
+    href: "/search?q=tablets",
+  },
+  {
+    title: "Zydus",
+    imageUrl: "https://www.zyduslife.com/public/images/zydus-logo.png",
+    href: "/products",
+  },
+  {
+    title: "Torrent Pharma",
+    imageUrl: "https://www.torrentpharma.com/new-logo.svg",
+    href: "/products",
+  },
+  {
+    title: "Cadila",
+    imageUrl: "https://www.cadilapharma.com/ast/uploads/2019/05/footer-icn.svg",
+    href: "/refer-earn",
+  },
+];
 
 const HomePage = () => {
   const router = useRouter();
@@ -50,6 +95,8 @@ const HomePage = () => {
   const [products, setProducts] = useState([]);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [searchText, setSearchText] = useState("");
+  const [isQuickActionsHovered, setIsQuickActionsHovered] = useState(false);
 
   const bestSelling = useMemo(() => {
     return [...(products || [])].sort((a, b) => {
@@ -76,6 +123,18 @@ const HomePage = () => {
       return ((a.productName || a.name) ?? "").localeCompare((b.productName || b.name) ?? "");
     });
   }, [products]);
+
+  const searchMatches = useMemo(() => {
+    const query = searchText.trim().toLowerCase();
+    if (!query) return [];
+
+    return [...(products || [])]
+      .filter((product) => {
+        const productName = (product.productName || product.name || "").toLowerCase();
+        return productName.includes(query);
+      })
+      .slice(0, 6);
+  }, [products, searchText]);
 
   // Auto-slide Hero Banner
   useEffect(() => {
@@ -128,30 +187,139 @@ const HomePage = () => {
     );
   }
 
+  const handleQuickSearch = (e) => {
+    e.preventDefault();
+    const q = searchText.trim();
+    if (!q) return;
+    router.push(`/search?q=${encodeURIComponent(q)}`);
+  };
+
+  const quickActionLoop = [...QUICK_ACTIONS, ...QUICK_ACTIONS];
+
   return (
     <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-10 bg-white min-h-screen">
 
 
       {/* 2. HERO BANNER */}
-      <section className="relative w-full h-44 md:h-80 rounded-2xl overflow-hidden shadow-sm">
+      <section className="relative w-full h-44 md:h-80 rounded-2xl overflow-hidden shadow-lg ring-1 ring-sky-100">
         {BANNERS.map((src, i) => (
-          <img
+          <Image
             key={i}
             src={src}
             alt={`Banner ${i + 1}`}
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${bannerIndex === i ? "opacity-100 z-10" : "opacity-0 z-0"
+            fill
+            priority={i === 0}
+            sizes="(max-width: 768px) 100vw, 1200px"
+            className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ${bannerIndex === i ? "opacity-100 z-10" : "opacity-0 z-0"
               }`}
           />
         ))}
+        <div className="pointer-events-none absolute inset-0 z-10 bg-linear-to-t from-black/20 via-black/5 to-transparent" />
         <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 z-20">
           {BANNERS.map((_, i) => (
             <button
               key={i}
               onClick={() => setBannerIndex(i)}
-              className={`h-1.5 rounded-full transition-all ${bannerIndex === i ? "w-8 bg-white" : "w-2 bg-white/50"
+              aria-label={`Go to banner ${i + 1}`}
+              className={`h-2 rounded-full border border-white/45 transition-all ${bannerIndex === i ? "w-9 bg-cyan-200 shadow-sm" : "w-2.5 bg-white/70 hover:bg-cyan-100"
                 }`}
             />
           ))}
+        </div>
+      </section>
+
+      <section className="rounded-4xl border border-slate-200 bg-[linear-gradient(160deg,#f8fafc_0%,#eef8ff_45%,#f6fffb_100%)] p-4 shadow-[0_14px_35px_rgba(15,23,42,0.06)] md:p-6">
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.28em] text-teal-600">Bulk buy stock</p>
+            <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900 md:text-3xl">What are you looking for?</h2>
+          </div>
+          <Link
+            href="/kyc"
+            className="inline-flex items-center gap-2 rounded-full border border-teal-200 bg-white px-3 py-1.5 text-sm font-semibold text-teal-700 hover:bg-teal-50"
+          >
+            <FileText className="h-4 w-4" />
+            Upload prescription
+            <ChevronRight className="h-4 w-4" />
+          </Link>
+        </div>
+
+        <div className="mb-5 space-y-3">
+          <form onSubmit={handleQuickSearch} className="flex items-center gap-2 rounded-full border border-gray-200 bg-white p-1.5 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+            <div className="flex min-w-0 flex-1 items-center gap-3 px-3">
+              <Search className="h-5 w-5 text-gray-400" />
+              <input
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                type="text"
+                placeholder="Search medicines, stock, brands..."
+                className="h-10 w-full border-none bg-transparent text-base text-gray-700 outline-none placeholder:text-gray-400"
+              />
+            </div>
+            <button
+              type="submit"
+              className="rounded-full bg-linear-to-r from-teal-700 to-cyan-600 px-6 py-2.5 text-base font-bold text-white transition-all hover:from-teal-800 hover:to-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={!searchText.trim()}
+            >
+              Search
+            </button>
+          </form>
+
+          {searchText.trim() ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+              <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-teal-600">Related products</p>
+              {searchMatches.length > 0 ? (
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {searchMatches.map((product) => (
+                    <button
+                      key={product._id}
+                      type="button"
+                      onClick={() => router.push(`/products/${getProductSlug(product)}`)}
+                      className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-left transition-all hover:border-teal-200 hover:bg-teal-50"
+                    >
+                      <span className="min-w-0 truncate text-sm font-semibold text-slate-800">
+                        {product.productName || product.name}
+                      </span>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500">No related products found.</p>
+              )}
+            </div>
+          ) : null}
+        </div>
+
+        <div
+          className="overflow-hidden"
+          onMouseEnter={() => setIsQuickActionsHovered(true)}
+          onMouseLeave={() => setIsQuickActionsHovered(false)}
+        >
+          <div
+            className="flex w-max gap-3 py-1 marquee-track"
+            style={{ animationPlayState: isQuickActionsHovered ? "paused" : "running" }}
+          >
+            {quickActionLoop.map((item, index) => {
+            return (
+              <Link
+                key={`${item.title}-${index}`}
+                href={item.href}
+                className="group min-w-40 shrink-0 rounded-[28px] border border-white/80 bg-white/90 p-4 text-center transition-all duration-300 hover:-translate-y-1 hover:border-cyan-100 hover:shadow-[0_12px_30px_rgba(14,116,144,0.12)] md:min-w-44"
+              >
+                <div className="mx-auto flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-white ring-1 ring-slate-200 transition-transform group-hover:scale-105">
+                  <img
+                    src={item.imageUrl}
+                    alt={item.title}
+                    className="h-full w-full object-contain p-2.5"
+                    loading="lazy"
+                  />
+                </div>
+                <p className="mt-3 text-sm font-semibold text-slate-800">{item.title}</p>
+              </Link>
+            );
+            })}
+          </div>
         </div>
       </section>
 
@@ -245,6 +413,67 @@ const HomePage = () => {
             token={token}
             user={user}
           />
+
+          {/* All Products Section */}
+          <section className="pt-6 border-t border-gray-200">
+            <div className="flex justify-between items-center mb-8">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-800">All Products</h2>
+                <p className="text-sm text-gray-500 mt-1">Explore our complete pharmacy catalog</p>
+              </div>
+              <Link 
+                href="/products" 
+                className="text-teal-700 bg-teal-50 px-6 py-2.5 rounded-full text-sm font-semibold flex items-center gap-2 hover:bg-teal-100 transition-all border border-teal-200"
+              >
+                View All <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {products.slice(0, 10).map((product) => {
+                const wished = isInWishlist?.(product._id);
+                const cartItem = cartItems.find((item) => item._id === product._id);
+                const img = product?.productImages?.[0] || product?.image;
+                const discountPercent = product.discountPercent || 0;
+
+                const handleAdd = async () => {
+                  if (!token) return (window.location.href = "/login");
+                  if (user?.kyc !== "APPROVED") {
+                    return showToast("Complete KYC to add to cart.", "info", "KYC Required");
+                  }
+                  try {
+                    await addToCart(product._id, product.minOrderQty || 1);
+                    showToast("Added to cart");
+                  } catch {
+                    showToast("Could not add to cart.", "error");
+                  }
+                };
+
+                return (
+                  <ProductCard
+                    key={product._id}
+                    product={product}
+                    cartItem={cartItem}
+                    wished={wished}
+                    onAdd={handleAdd}
+                    onUpdateQty={updateCartQty}
+                    onToggleWishlist={() =>
+                      toggleWishlist?.({
+                        _id: product._id,
+                        name: product.productName,
+                        price: product.sellingPrice,
+                        image: getProductImageUrl(img),
+                        unit: product.packSize || "1 unit",
+                      })
+                    }
+                    imageUrl={getProductImageUrl(img)}
+                    showBadge={discountPercent > 0}
+                    badgeText={discountPercent > 0 ? `${discountPercent}% OFF` : ""}
+                  />
+                );
+              })}
+            </div>
+          </section>
         </>
       )}
     </div>
@@ -325,7 +554,7 @@ const ProductCarousel = ({
           return (
             <div
               key={product._id}
-              className="min-w-[180px] md:min-w-[240px] shrink-0 border border-gray-100 rounded-2xl p-4 relative hover:shadow-xl hover:border-teal-100 transition-all bg-white"
+              className="min-w-45 md:min-w-60 shrink-0 border border-gray-100 rounded-2xl p-4 relative hover:shadow-xl hover:border-teal-100 transition-all bg-white"
             >
               {/* Wishlist */}
               <button
@@ -361,7 +590,7 @@ const ProductCarousel = ({
                   <span className="text-teal-700 font-bold text-lg">₹{product.sellingPrice}</span>
                   <span className="text-[10px] text-gray-400 font-medium">{product.packSize}</span>
                 </div>
-                <h3 className="text-sm font-semibold text-gray-700 capitalize line-clamp-2 min-h-[40px]">
+                <h3 className="text-sm font-semibold text-gray-700 capitalize line-clamp-2 min-h-10">
                   {product.productName}
                 </h3>
               </div>

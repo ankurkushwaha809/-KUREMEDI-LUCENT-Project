@@ -1,0 +1,12 @@
+# Secrets and local environment files
+*.pem
+.env
+.env.*
+
+# Common runtime artifacts
+node_modules/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

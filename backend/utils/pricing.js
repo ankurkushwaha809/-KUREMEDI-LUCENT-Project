@@ -35,14 +35,9 @@ export const calculateUnitPricing = ({
   const discountAmount = (baseSellingPrice * normalizedDiscount) / 100;
   const discountedSellingPrice = Math.max(0, baseSellingPrice - discountAmount);
 
-  let taxableSellingPrice = baseSellingPrice;
-  let gstAmount = 0;
-  let finalSellingPrice = discountedSellingPrice;
-
-  if (normalizedMode === GST_MODE_INCLUDE && normalizedGst > 0) {
-    gstAmount = (baseSellingPrice * normalizedGst) / 100;
-    finalSellingPrice = discountedSellingPrice + gstAmount;
-  }
+  const taxableSellingPrice = discountedSellingPrice;
+  const gstAmount = normalizedGst > 0 ? (baseSellingPrice * normalizedGst) / 100 : 0;
+  const finalSellingPrice = discountedSellingPrice + gstAmount;
 
   return {
     baseSellingPrice: round2(baseSellingPrice),
