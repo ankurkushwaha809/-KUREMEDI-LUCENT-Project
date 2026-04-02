@@ -2,9 +2,10 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Receipt, Check, Package, Truck, MapPin, RefreshCw, X } from 'lucide-react';
+import { ArrowLeft, Download, Receipt, Check, Package, Truck, MapPin, RefreshCw, X } from 'lucide-react';
 import { useAppContext } from '@/context/context';
 import * as api from '@/api';
+import { downloadOrderInvoicePdf } from '@/utils/invoice';
 
 const STATUS_STEPS = [
   { key: 'PLACED', label: 'Order Placed', icon: Receipt },
@@ -55,7 +56,7 @@ function OrderStatusTimeline({ status }) {
               <Icon className={`w-4 h-4 ${isDone || isCurrent ? 'text-white' : 'text-gray-400'}`} />
             </div>
             <span
-              className={`text-[10px] mt-1 text-center max-w-[64px] ${
+              className={`text-[10px] mt-1 text-center max-w-16 ${
                 isCurrent ? 'text-teal-600 font-semibold' : isDone ? 'text-teal-600' : 'text-gray-400'
               }`}
             >
@@ -63,7 +64,7 @@ function OrderStatusTimeline({ status }) {
             </span>
             {index < STATUS_STEPS.length - 1 && (
               <div
-                className={`absolute top-[18px] left-1/2 w-full h-0.5 z-0 ${
+                className={`absolute top-4.5 left-1/2 w-full h-0.5 z-0 ${
                   currentIndex > stepOrderIndex ? 'bg-teal-600' : 'bg-gray-200'
                 }`}
                 style={{ width: '100%', marginLeft: '50%' }}
@@ -77,7 +78,7 @@ function OrderStatusTimeline({ status }) {
 }
 
 export default function OrdersPage() {
-  const { token } = useAppContext();
+  const { token, user } = useAppContext();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [trackingOrderId, setTrackingOrderId] = useState(null);
@@ -216,6 +217,15 @@ export default function OrdersPage() {
                     Track order
                   </button>
                 )}
+
+                <button
+                  type="button"
+                  onClick={() => downloadOrderInvoicePdf(item, { buyer: user })}
+                  className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-700 font-semibold text-sm hover:border-teal-300 hover:text-teal-700 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  Download invoice PDF
+                </button>
               </div>
             );
           })}

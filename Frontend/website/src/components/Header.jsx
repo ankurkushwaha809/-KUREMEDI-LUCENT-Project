@@ -1,19 +1,72 @@
-'use client';
+ 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAppContext } from '@/context/context';
-import { Search } from 'lucide-react';
+import { ClipboardList, Search, X } from 'lucide-react';
 import Image from 'next/image';
+import * as api from '@/api';
+import { formatOrderNumber, getOrderProgressLabel, getOrderStatusClasses, normalizeOrderStatus } from '@/utils/orders';
 
 export default function Header() {
     const router = useRouter();
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const historyRef = useRef(null);
+    const [isOrderHistoryOpen, setIsOrderHistoryOpen] = useState(false);
+    const [orderHistory, setOrderHistory] = useState([]);
+    const [orderHistoryLoading, setOrderHistoryLoading] = useState(false);
+    const [orderHistoryError, setOrderHistoryError] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const { cartItems, wishlistItems, user, token } = useAppContext();
     const cartCount = cartItems?.reduce((s, i) => s + (i.qty || 0), 0) ?? 0;
     const wishlistCount = wishlistItems?.length ?? 0;
+
+    const loadOrderHistory = useCallback(async () => {
+        if (!token) return;
+        setOrderHistoryLoading(true);
+        setOrderHistoryError('');
+        try {
+            const data = await api.getMyOrders();
+            setOrderHistory(Array.isArray(data) ? data : []);
+        } catch (error) {
+            setOrderHistory([]);
+            setOrderHistoryError('Unable to load order history');
+        } finally {
+            setOrderHistoryLoading(false);
+        }
+    }, [token]);
+
+    useEffect(() => {
+        if (!isOrderHistoryOpen) return;
+        loadOrderHistory();
+    }, [isOrderHistoryOpen, loadOrderHistory]);
+
+    useEffect(() => {
+        const onPointerDown = (event) => {
+            if (!historyRef.current) return;
+            if (!historyRef.current.contains(event.target)) {
+                setIsOrderHistoryOpen(false);
+            }
+        };
+
+        const onKeyDown = (event) => {
+            if (event.key === 'Escape') {
+                setIsOrderHistoryOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', onPointerDown);
+        document.addEventListener('touchstart', onPointerDown);
+        document.addEventListener('keydown', onKeyDown);
+
+        return () => {
+            document.removeEventListener('mousedown', onPointerDown);
+            document.removeEventListener('touchstart', onPointerDown);
+            document.removeEventListener('keydown', onKeyDown);
+        };
+    }, []);
+
+    const recentOrders = orderHistory.slice(0, 3);
 
     return (
         <header className="bg-white shadow-sm sticky top-0 z-50">
@@ -50,6 +103,99 @@ export default function Header() {
 
                     {/* 3. RIGHT: Actions (Cart, Wishlist, Login) */}
                     <div className="flex items-center gap-2 md:gap-5">
+
+                        <div className="relative" ref={historyRef}>
+                            <button
+                                type="button"
+                                onClick={() => setIsOrderHistoryOpen((prev) => !prev)}
+                                className="relative p-2 text-gray-600 hover:text-teal-700 transition-colors"
+                                aria-label="Open order history"
+                                aria-expanded={isOrderHistoryOpen}
+                            >
+                                <ClipboardList className="w-6 h-6" />
+                            </button>
+
+                            {isOrderHistoryOpen && (
+                                <div className="absolute right-0 top-full mt-3 w-[min(22rem,calc(100vw-2rem))] rounded-3xl border border-gray-100 bg-white shadow-2xl overflow-hidden z-50">
+                                    <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
+                                        <div>
+                                            <p className="text-sm font-semibold text-gray-900">Order history</p>
+                                            <p className="text-xs text-gray-500">Recent delivery updates</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsOrderHistoryOpen(false)}
+                                            className="rounded-full p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                                            aria-label="Close order history"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    </div>
+
+                                    <div className="max-h-88 overflow-y-auto p-3 space-y-3">
+                                        {!token ? (
+                                            <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-4 text-center">
+                                                <p className="text-sm font-medium text-gray-700">Login to view your order history.</p>
+                                                <Link
+                                                    href="/login"
+                                                    className="mt-3 inline-flex items-center justify-center rounded-xl bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 transition-colors"
+                                                >
+                                                    Login
+                                                </Link>
+                                            </div>
+                                        ) : orderHistoryLoading ? (
+                                            <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 text-center text-sm text-gray-500">
+                                                Loading order history...
+                                            </div>
+                                        ) : orderHistoryError ? (
+                                            <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm text-rose-700">
+                                                {orderHistoryError}
+                                            </div>
+                                        ) : recentOrders.length === 0 ? (
+                                            <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 text-center text-sm text-gray-500">
+                                                No orders yet.
+                                            </div>
+                                        ) : (
+                                            recentOrders.map((order) => {
+                                                const status = normalizeOrderStatus(order.status);
+                                                const items = Array.isArray(order.items) ? order.items : [];
+                                                const firstItemNames = items.slice(0, 2).map((item) => item?.productName || 'Ordered product').join(', ');
+                                                const extraCount = Math.max(0, items.length - 2);
+
+                                                return (
+                                                    <div key={order._id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div className="min-w-0">
+                                                                <p className="text-sm font-semibold text-gray-900">Order #{formatOrderNumber(order._id)}</p>
+                                                                <p className="mt-1 text-xs text-gray-500">{firstItemNames || 'Ordered product'}</p>
+                                                            </div>
+                                                            <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getOrderStatusClasses(status)}`}>
+                                                                {getOrderProgressLabel(status)}
+                                                            </span>
+                                                        </div>
+                                                        <p className="mt-2 text-xs text-gray-500">
+                                                            {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'Recent order'}
+                                                            {extraCount > 0 ? ` • +${extraCount} more` : ''}
+                                                        </p>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+
+                                    <div className="border-t border-gray-100 bg-gray-50 p-3">
+                                        <Link
+                                            href="/ordered-products"
+                                            onClick={() => setIsOrderHistoryOpen(false)}
+                                            className="flex items-center justify-between rounded-2xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white hover:bg-teal-800 transition-colors"
+                                        >
+                                            <span>View ordered products</span>
+                                            <span aria-hidden="true">→</span>
+                                        </Link>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
 
                         {/* Wishlist */}
                         <Link href="/wishlist" className="relative p-2 text-gray-600 hover:text-teal-700 transition-colors">
@@ -92,20 +238,6 @@ export default function Header() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                             </svg>
                         </Link>
-
-
-                        {/* <button
-                            onClick={() => setIsMenuOpen(!isMenuOpen)}
-                            className="md:hidden p-2 text-gray-700 hover:text-teal-700"
-                        >
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                {isMenuOpen ? (
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                ) : (
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                                )}
-                            </svg>
-                        </button> */}
                     </div>
                 </div>
 
@@ -128,23 +260,6 @@ export default function Header() {
                         <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     </form>
                 </div>
-
-                {/* Mobile Drawer */}
-                {/* {isMenuOpen && (
-                    <nav className="md:hidden mt-4 pb-4 border-t pt-4 animate-in slide-in-from-top duration-200">
-                        <div className="flex flex-col gap-2">
-                            <Link href="/products" className="px-2 py-3 text-gray-700 font-medium">All Products</Link>
-                            <Link href="/about" className="px-2 py-3 text-gray-700 font-medium">About Company</Link>
-                            <Link href="/contact" className="px-2 py-3 text-gray-700 font-medium">Contact Support</Link>
-                            <Link href="/login" className="mt-2 flex justify-center items-center gap-2 px-6 py-3 bg-teal-700 text-white rounded-full font-medium">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                </svg>
-                                Login / Register
-                            </Link>
-                        </div>
-                    </nav>
-                )} */}
             </div>
         </header>
     );

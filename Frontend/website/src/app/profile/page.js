@@ -10,6 +10,7 @@ import {
   Receipt,
   LogOut,
   ChevronRight,
+  ArrowLeft,
   ArrowRight,
   Contact,
   HelpCircle,
@@ -39,7 +40,9 @@ export default function ProfilePage() {
   if (!token || !user) {
     return (
       <div className="min-h-screen bg-gray-50 px-4 pt-8 pb-12">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Profile</h1>
+         <h1 className="text-2xl font-bold text-gray-900 mb-6">Profile
+          
+         </h1>
         <div className="bg-white rounded-2xl p-8 text-center border border-gray-200 shadow-sm">
           <div className="w-24 h-24 rounded-full bg-teal-100 flex items-center justify-center mx-auto mb-4">
             <User className="w-14 h-14 text-teal-700" />
@@ -67,7 +70,16 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 pt-8 pb-12">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Profile</h1>
+      <div className="flex items-center gap-3 mb-6">
+        <Link
+          href="/"
+          className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-gray-200 bg-white text-gray-700 hover:text-teal-700 hover:border-teal-300 shadow-sm transition-colors"
+          aria-label="Back"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </Link>
+        <h1 className="text-2xl font-bold text-gray-900">Profile</h1>
+      </div>
 
       <KycBanner kyc={user.kyc} />
 
