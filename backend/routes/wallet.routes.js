@@ -6,6 +6,35 @@ import Wallet from "../model/Wallet.js";
 
 const router = express.Router();
 
+function timingSafeSignatureEqual(expectedHex, providedHex) {
+  try {
+    const expected = Buffer.from(String(expectedHex || ""), "hex");
+    const provided = Buffer.from(String(providedHex || ""), "hex");
+    if (!expected.length || expected.length !== provided.length) return false;
+    return crypto.timingSafeEqual(expected, provided);
+  } catch {
+    return false;
+  }
+}
+
+async function fetchRazorpayPayment({ keyId, keySecret, paymentId }) {
+  const response = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}`,
+    },
+  });
+
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  return { ok: response.ok, status: response.status, data };
+}
+
 /**
  * GET /api/wallet
  * Get current user's wallet balance
@@ -106,37 +135,88 @@ router.post("/recharge", protect, async (req, res) => {
  */
 router.post("/recharge/verify", protect, async (req, res) => {
   try {
+    const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
+    const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
+
+    if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
+      return res.status(503).json({ message: "Payment gateway not configured" });
+    }
+
     const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
 
     if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
       return res.status(400).json({ message: "Missing payment details" });
     }
 
-    const recharge = await Recharge.findOne({
-      razorpayOrderId,
-      user: req.user._id,
-      status: "PENDING",
-    });
+    const recharge = await Recharge.findOne({ razorpayOrderId, user: req.user._id });
 
     if (!recharge) {
       return res.status(404).json({ message: "Recharge not found or already processed" });
     }
 
-    let verified = false;
-    const RAZORPAY_KEY_SECRET_VERIFY = process.env.RAZORPAY_KEY_SECRET;
-    if (RAZORPAY_KEY_SECRET_VERIFY) {
-      const body = razorpayOrderId + "|" + razorpayPaymentId;
-      const expected = crypto
-        .createHmac("sha256", RAZORPAY_KEY_SECRET_VERIFY)
-        .update(body)
-        .digest("hex");
-      verified = expected === razorpaySignature;
-    } else {
-      verified = process.env.NODE_ENV !== "production";
+    if (recharge.status !== "PENDING") {
+      if (recharge.razorpayPaymentId && recharge.razorpayPaymentId === razorpayPaymentId) {
+        const wallet = await Wallet.findOne({ user: req.user._id });
+        return res.status(200).json({
+          message: "Wallet recharge already verified",
+          newBalance: wallet?.balance ?? 0,
+          amount: recharge.amount,
+          receipt: (razorpayPaymentId || recharge.razorpayOrderId || "").slice(0, 40),
+        });
+      }
+
+      return res.status(409).json({ message: "Recharge already processed" });
     }
+
+    const duplicatePayment = await Recharge.findOne({
+      _id: { $ne: recharge._id },
+      razorpayPaymentId,
+    }).select("_id");
+
+    if (duplicatePayment) {
+      return res.status(409).json({ message: "Payment reference already used" });
+    }
+
+    const body = razorpayOrderId + "|" + razorpayPaymentId;
+    const expected = crypto
+      .createHmac("sha256", RAZORPAY_KEY_SECRET)
+      .update(body)
+      .digest("hex");
+    const verified = timingSafeSignatureEqual(expected, razorpaySignature);
 
     if (!verified) {
       return res.status(400).json({ message: "Payment verification failed" });
+    }
+
+    const gatewayPayment = await fetchRazorpayPayment({
+      keyId: RAZORPAY_KEY_ID,
+      keySecret: RAZORPAY_KEY_SECRET,
+      paymentId: razorpayPaymentId,
+    });
+
+    if (!gatewayPayment.ok || !gatewayPayment.data?.id) {
+      return res.status(502).json({ message: "Unable to validate payment with Razorpay" });
+    }
+
+    const paymentData = gatewayPayment.data;
+    const expectedAmountPaise = Math.round(Number(recharge.amount || 0) * 100);
+    const paymentAmountPaise = Number(paymentData.amount || 0);
+    const paymentStatus = String(paymentData.status || "").toLowerCase();
+
+    if (paymentData.order_id !== razorpayOrderId) {
+      return res.status(400).json({ message: "Payment order mismatch" });
+    }
+
+    if (String(paymentData.currency || "") !== "INR") {
+      return res.status(400).json({ message: "Invalid payment currency" });
+    }
+
+    if (paymentAmountPaise !== expectedAmountPaise) {
+      return res.status(400).json({ message: "Payment amount mismatch" });
+    }
+
+    if (!["authorized", "captured"].includes(paymentStatus)) {
+      return res.status(400).json({ message: "Payment is not in a valid state" });
     }
 
     recharge.razorpayPaymentId = razorpayPaymentId;

@@ -22,6 +22,25 @@ export const sendOtp = (phone) => apiPost("/auth/send-otp", { phone });
 
 export const verifyOtp = (phone, otp) => apiPost("/auth/verify-otp", { phone, otp });
 
+export const loginWithPassword = (email, password) =>
+  apiPost("/auth/login", { email, password });
+
+export const sendPasswordResetOtp = (phone) =>
+  apiPost("/auth/password-reset/send-otp", { phone });
+
+export const verifyPasswordResetOtp = (phone, otp) =>
+  apiPost("/auth/password-reset/verify-otp", { phone, otp });
+
+export const completePasswordReset = (tempToken, data) =>
+  fetch(`${API_BASE_URL}/auth/password-reset/complete`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${tempToken}`,
+    },
+    body: JSON.stringify(data),
+  }).then((r) => r.json());
+
 export const completeRegistration = (tempToken, data) =>
   fetch(`${API_BASE_URL}/auth/complete-registration`, {
     method: "POST",

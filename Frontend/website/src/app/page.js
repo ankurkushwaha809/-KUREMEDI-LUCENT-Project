@@ -8,7 +8,6 @@ import {
   Plus,
   Minus,
   Search,
-  FileText,
   FlaskConical,
   Stethoscope,
   Pill,
@@ -197,11 +196,12 @@ const HomePage = () => {
   const quickActionLoop = [...QUICK_ACTIONS, ...QUICK_ACTIONS];
 
   return (
-    <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-10 bg-white min-h-screen">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#ecfdf5_0%,#ffffff_42%,#eff6ff_100%)]">
+      <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-10">
 
 
       {/* 2. HERO BANNER */}
-      <section className="relative w-full h-44 md:h-80 rounded-2xl overflow-hidden shadow-lg ring-1 ring-sky-100">
+      <section className="relative w-full h-44 md:h-80 rounded-3xl overflow-hidden shadow-[0_18px_50px_rgba(59,130,246,0.12)] ring-1 ring-sky-100">
         {BANNERS.map((src, i) => (
           <Image
             key={i}
@@ -214,51 +214,43 @@ const HomePage = () => {
               }`}
           />
         ))}
-        <div className="pointer-events-none absolute inset-0 z-10 bg-linear-to-t from-black/20 via-black/5 to-transparent" />
+        <div className="pointer-events-none absolute inset-0 z-10 bg-linear-to-t from-slate-950/30 via-sky-950/10 to-transparent" />
         <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 z-20">
           {BANNERS.map((_, i) => (
             <button
               key={i}
               onClick={() => setBannerIndex(i)}
               aria-label={`Go to banner ${i + 1}`}
-              className={`h-2 rounded-full border border-white/45 transition-all ${bannerIndex === i ? "w-9 bg-cyan-200 shadow-sm" : "w-2.5 bg-white/70 hover:bg-cyan-100"
+              className={`h-2 rounded-full border border-white/45 transition-all ${bannerIndex === i ? "w-9 bg-sky-200 shadow-sm" : "w-2.5 bg-white/70 hover:bg-sky-100"
                 }`}
             />
           ))}
         </div>
       </section>
 
-      <section className="rounded-4xl border border-slate-200 bg-[linear-gradient(160deg,#f8fafc_0%,#eef8ff_45%,#f6fffb_100%)] p-4 shadow-[0_14px_35px_rgba(15,23,42,0.06)] md:p-6">
+      <section className="rounded-4xl border border-white/80 bg-[linear-gradient(160deg,#ffffff_0%,#eff6ff_48%,#f8fbff_100%)] p-4 shadow-[0_14px_35px_rgba(59,130,246,0.08)] md:p-6">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.28em] text-teal-600">Bulk buy stock</p>
+            <p className="text-xs font-bold uppercase tracking-[0.28em] text-sky-600">Bulk buy stock</p>
             <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900 md:text-3xl">What are you looking for?</h2>
           </div>
-          <Link
-            href="/kyc"
-            className="inline-flex items-center gap-2 rounded-full border border-teal-200 bg-white px-3 py-1.5 text-sm font-semibold text-teal-700 hover:bg-teal-50"
-          >
-            <FileText className="h-4 w-4" />
-            Upload prescription
-            <ChevronRight className="h-4 w-4" />
-          </Link>
         </div>
 
         <div className="mb-5 space-y-3">
-          <form onSubmit={handleQuickSearch} className="flex items-center gap-2 rounded-full border border-gray-200 bg-white p-1.5 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+          <form onSubmit={handleQuickSearch} className="flex items-center gap-2 rounded-full border border-sky-100 bg-white p-1.5 shadow-[0_8px_24px_rgba(59,130,246,0.08)]">
             <div className="flex min-w-0 flex-1 items-center gap-3 px-3">
-              <Search className="h-5 w-5 text-gray-400" />
+              <Search className="h-5 w-5 text-sky-400" />
               <input
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
                 type="text"
                 placeholder="Search medicines, stock, brands..."
-                className="h-10 w-full border-none bg-transparent text-base text-gray-700 outline-none placeholder:text-gray-400"
+                className="h-10 w-full border-none bg-transparent text-base text-slate-700 outline-none placeholder:text-slate-400"
               />
             </div>
             <button
               type="submit"
-              className="rounded-full bg-linear-to-r from-teal-700 to-cyan-600 px-6 py-2.5 text-base font-bold text-white transition-all hover:from-teal-800 hover:to-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-full bg-linear-to-r from-sky-600 via-blue-600 to-cyan-500 px-6 py-2.5 text-base font-bold text-white transition-all hover:from-sky-700 hover:via-blue-700 hover:to-cyan-600 disabled:cursor-not-allowed disabled:opacity-60"
               disabled={!searchText.trim()}
             >
               Search
@@ -266,8 +258,8 @@ const HomePage = () => {
           </form>
 
           {searchText.trim() ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-              <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-teal-600">Related products</p>
+            <div className="rounded-2xl border border-sky-100 bg-white p-3 shadow-sm">
+              <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-sky-600">Related products</p>
               {searchMatches.length > 0 ? (
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {searchMatches.map((product) => (
@@ -275,7 +267,7 @@ const HomePage = () => {
                       key={product._id}
                       type="button"
                       onClick={() => router.push(`/products/${getProductSlug(product)}`)}
-                      className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-left transition-all hover:border-teal-200 hover:bg-teal-50"
+                      className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-left transition-all hover:border-emerald-200 hover:bg-emerald-50"
                     >
                       <span className="min-w-0 truncate text-sm font-semibold text-slate-800">
                         {product.productName || product.name}
@@ -305,7 +297,7 @@ const HomePage = () => {
               <Link
                 key={`${item.title}-${index}`}
                 href={item.href}
-                className="group min-w-40 shrink-0 rounded-[28px] border border-white/80 bg-white/90 p-4 text-center transition-all duration-300 hover:-translate-y-1 hover:border-cyan-100 hover:shadow-[0_12px_30px_rgba(14,116,144,0.12)] md:min-w-44"
+                className="group min-w-40 shrink-0 rounded-[28px] border border-white/80 bg-white/90 p-4 text-center transition-all duration-300 hover:-translate-y-1 hover:border-sky-100 hover:shadow-[0_12px_30px_rgba(59,130,246,0.10)] md:min-w-44"
               >
                 <div className="mx-auto flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-white ring-1 ring-slate-200 transition-transform group-hover:scale-105">
                   <img
@@ -328,15 +320,15 @@ const HomePage = () => {
       {/* 3. CATEGORIES */}
       <section>
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-gray-800">Categories</h2>
-          <Link href="/categories" className="text-teal-700 bg-teal-50 px-4 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1 hover:bg-teal-100 transition-all">
+          <h2 className="text-xl font-bold text-slate-800">Categories</h2>
+          <Link href="/categories" className="text-sky-700 bg-sky-50 px-4 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1 hover:bg-sky-100 transition-all">
             View All <ChevronRight className="w-4 h-4" />
           </Link>
         </div>
         <div className="grid grid-cols-4 md:grid-cols-8 gap-4">
           {categories.map((cat) => (
             <Link key={cat._id} href={`/categories/${getCategorySlug(cat)}`} className="group text-center">
-              <div className="w-16 h-16 md:w-20 md:h-20 mx-auto rounded-full bg-gray-50 flex items-center justify-center overflow-hidden mb-2 border border-gray-100 group-hover:shadow-md group-hover:border-teal-100 transition-all">
+              <div className="w-16 h-16 md:w-20 md:h-20 mx-auto rounded-full bg-white flex items-center justify-center overflow-hidden mb-2 border border-slate-100 group-hover:shadow-md group-hover:border-sky-100 transition-all">
                 <img src={getImageUrl(cat?.image)} alt={cat?.name} className="w-full h-full object-cover" />
               </div>
               <span className="text-[10px] md:text-xs font-medium text-gray-600 truncate block px-1">
@@ -350,14 +342,14 @@ const HomePage = () => {
       {/* 4. BRANDS */}
       <section>
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-gray-800">Top Brands</h2>
-          <Link href="/brands" className="text-teal-700 bg-teal-50 px-4 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1 hover:bg-teal-100 transition-all">
+          <h2 className="text-xl font-bold text-slate-800">Top Brands</h2>
+          <Link href="/brands" className="text-sky-700 bg-sky-50 px-4 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1 hover:bg-sky-100 transition-all">
             View All <ChevronRight className="w-4 h-4" />
           </Link>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {brands.map((brand) => (
-            <Link key={brand._id} href={`/brands/${getBrandSlug(brand)}`} className="flex flex-col items-center p-4 border border-gray-100 rounded-2xl hover:border-teal-200 hover:shadow-sm transition-all">
+            <Link key={brand._id} href={`/brands/${getBrandSlug(brand)}`} className="flex flex-col items-center p-4 border border-slate-100 rounded-2xl bg-white hover:border-sky-100 hover:shadow-sm transition-all">
               <div className="h-10 w-full flex items-center justify-center mb-2">
                 <img src={getBrandImageUrl(brand?.logo)} alt={brand?.name} className="max-h-full max-w-full object-contain" />
               </div>
@@ -423,7 +415,7 @@ const HomePage = () => {
               </div>
               <Link 
                 href="/products" 
-                className="text-teal-700 bg-teal-50 px-6 py-2.5 rounded-full text-sm font-semibold flex items-center gap-2 hover:bg-teal-100 transition-all border border-teal-200"
+                className="text-emerald-700 bg-emerald-50 px-6 py-2.5 rounded-full text-sm font-semibold flex items-center gap-2 hover:bg-emerald-100 transition-all border border-emerald-200"
               >
                 View All <ChevronRight className="w-4 h-4" />
               </Link>
@@ -477,6 +469,7 @@ const HomePage = () => {
         </>
       )}
     </div>
+    </div>
   );
 };
 
@@ -529,13 +522,13 @@ const ProductCarousel = ({
       <div className="absolute top-[40%] -translate-y-1/2 left-0 right-0 flex justify-between px-2 z-30 pointer-events-none">
         <button
           onClick={() => scroll("left")}
-          className="p-2.5 rounded-full bg-white/90 backdrop-blur-md shadow-lg border border-gray-200 text-teal-700 pointer-events-auto opacity-0 group-hover:opacity-100 transition-all hover:bg-teal-600 hover:text-white"
+                className="p-2.5 rounded-full bg-white/90 backdrop-blur-md shadow-lg border border-gray-200 text-sky-700 pointer-events-auto opacity-0 group-hover:opacity-100 transition-all hover:bg-sky-600 hover:text-white"
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
         <button
           onClick={() => scroll("right")}
-          className="p-2.5 rounded-full bg-white/90 backdrop-blur-md shadow-lg border border-gray-200 text-teal-700 pointer-events-auto opacity-0 group-hover:opacity-100 transition-all hover:bg-teal-600 hover:text-white"
+                className="p-2.5 rounded-full bg-white/90 backdrop-blur-md shadow-lg border border-gray-200 text-sky-700 pointer-events-auto opacity-0 group-hover:opacity-100 transition-all hover:bg-sky-600 hover:text-white"
         >
           <ChevronRight className="w-5 h-5" />
         </button>
@@ -554,7 +547,7 @@ const ProductCarousel = ({
           return (
             <div
               key={product._id}
-              className="min-w-45 md:min-w-60 shrink-0 border border-gray-100 rounded-2xl p-4 relative hover:shadow-xl hover:border-teal-100 transition-all bg-white"
+              className="min-w-45 md:min-w-60 shrink-0 border border-gray-100 rounded-2xl p-4 relative hover:shadow-xl hover:border-sky-100 transition-all bg-white"
             >
               {/* Wishlist */}
               <button
@@ -587,7 +580,7 @@ const ProductCarousel = ({
               {/* Info */}
               <div className="space-y-1">
                 <div className="flex items-baseline justify-between">
-                  <span className="text-teal-700 font-bold text-lg">₹{product.sellingPrice}</span>
+                  <span className="text-sky-700 font-bold text-lg">₹{product.sellingPrice}</span>
                   <span className="text-[10px] text-gray-400 font-medium">{product.packSize}</span>
                 </div>
                 <h3 className="text-sm font-semibold text-gray-700 capitalize line-clamp-2 min-h-10">
@@ -601,7 +594,7 @@ const ProductCarousel = ({
                   <div className="flex items-center justify-between bg-teal-50 rounded-xl border border-teal-200 p-1">
                     <button
                       onClick={() => updateCartQty(product._id, cartItem.qty - (product.minOrderQty || 1))}
-                      className="p-1.5 text-teal-700 hover:bg-white rounded-lg transition-colors"
+                      className="p-1.5 text-sky-700 hover:bg-white rounded-lg transition-colors"
                     >
                       <Minus className="w-4 h-4" />
                     </button>
@@ -609,7 +602,7 @@ const ProductCarousel = ({
                     <button
                       onClick={() => updateCartQty(product._id, cartItem.qty + 1)}
                       disabled={cartItem.qty >= product.stockQuantity}
-                      className="p-1.5 text-teal-700 hover:bg-white rounded-lg transition-colors disabled:opacity-30"
+                      className="p-1.5 text-sky-700 hover:bg-white rounded-lg transition-colors disabled:opacity-30"
                     >
                       <Plus className="w-4 h-4" />
                     </button>
@@ -620,7 +613,7 @@ const ProductCarousel = ({
                     disabled={outOfStock}
                     className={`w-full py-2.5 rounded-xl font-bold text-xs tracking-widest uppercase transition-all ${outOfStock
                       ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                      : "bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-700 hover:text-white"
+                      : "bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-700 hover:text-white"
                       }`}
                   >
                     {outOfStock ? "Out of Stock" : "Add to Cart"}

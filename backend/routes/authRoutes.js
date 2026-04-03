@@ -41,6 +41,14 @@ const upload = multer({
 const generateToken = (payload, expiresIn = "7d") =>
   jwt.sign(payload, process.env.JWT_SECRET, { expiresIn });
 
+const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
+const normalizePhone = (value) => String(value || "").trim();
+const stripPassword = (user) => {
+  const userObj = user.toObject();
+  delete userObj.password;
+  return userObj;
+};
+
 // ----------------------
 // 1. SEND OTP (phone only - no user check)
 // ----------------------
@@ -165,11 +173,11 @@ router.post("/complete-registration", async (req, res) => {
     if (!decoded.verified || !decoded.phone)
       return res.status(401).json({ message: "Invalid token" });
 
-    const { name, email, referralCode } = req.body;
+    const { name, email, password, referralCode } = req.body;
     if (!name || !email)
       return res.status(400).json({ message: "Name and email are required" });
 
-    const normalizedEmail = String(email).trim().toLowerCase();
+    const normalizedEmail = normalizeEmail(email);
     const existingEmail = await User.findOne({ email: normalizedEmail });
     if (existingEmail)
       return res.status(400).json({ message: "Email already registered" });
@@ -197,8 +205,12 @@ router.post("/complete-registration", async (req, res) => {
     }
 
     const isMrApp = String(req.headers["x-app"] || "").toLowerCase() === "mr";
-    const randomPassword = crypto.randomBytes(32).toString("hex");
-    const hashedPassword = await bcrypt.hash(randomPassword, 10);
+    const trimmedPassword = password != null ? String(password).trim() : "";
+    if (trimmedPassword && trimmedPassword.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters" });
+    }
+    const passwordToStore = trimmedPassword || crypto.randomBytes(32).toString("hex");
+    const hashedPassword = await bcrypt.hash(passwordToStore, 10);
 
     if (isMrApp) {
       // MR app: create agent + Agent
@@ -227,11 +239,9 @@ router.post("/complete-registration", async (req, res) => {
       newUser.referralCode = agent.referralCode;
       await newUser.save();
 
-      const userObj = newUser.toObject();
-      delete userObj.password;
       return res.status(201).json({
         message: "Registration complete",
-        user: userObj,
+        user: stripPassword(newUser),
         token: generateToken({ id: newUser._id }),
       });
     }
@@ -246,12 +256,139 @@ router.post("/complete-registration", async (req, res) => {
       role: "user",
     });
 
-    const userObj = newUser.toObject();
-    delete userObj.password;
     res.status(201).json({
       message: "Registration complete",
-      user: userObj,
+      user: stripPassword(newUser),
       token: generateToken({ id: newUser._id }),
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ----------------------
+// PASSWORD RESET FLOW (phone OTP -> new password)
+// ----------------------
+router.post("/password-reset/send-otp", async (req, res) => {
+  try {
+    const phone = normalizePhone(req.body?.phone);
+    if (!phone) return res.status(400).json({ message: "Phone number is required" });
+
+    const user = await User.findOne({ phone });
+    if (!user) return res.status(404).json({ message: "No account found for this phone number" });
+
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+    await Otp.findOneAndUpdate(
+      { phone },
+      { otp, expiresAt },
+      { upsert: true, new: true }
+    );
+
+    const smsResult = await sendOtpSms(phone, otp);
+    if (!smsResult.success) {
+      if (process.env.NODE_ENV !== "production") {
+        return res.json({
+          message: "OTP generated (Twilio not configured - use devOtp for testing)",
+          devOtp: otp,
+        });
+      }
+      return res.status(503).json({ message: "Failed to send OTP" });
+    }
+
+    res.json({
+      message: "OTP sent successfully",
+      ...(process.env.NODE_ENV !== "production" && { devOtp: otp }),
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.post("/password-reset/verify-otp", async (req, res) => {
+  try {
+    const phone = normalizePhone(req.body?.phone);
+    const otp = String(req.body?.otp || "").trim();
+    if (!phone || !otp) {
+      return res.status(400).json({ message: "Phone number and OTP are required" });
+    }
+
+    const otpDoc = await Otp.findOne({ phone, otp });
+    if (!otpDoc) return res.status(401).json({ message: "Invalid or expired OTP" });
+    if (new Date() > otpDoc.expiresAt) return res.status(401).json({ message: "OTP has expired" });
+
+    const user = await User.findOne({ phone });
+    if (!user) return res.status(404).json({ message: "No account found for this phone number" });
+
+    await Otp.deleteOne({ _id: otpDoc._id });
+
+    const tempToken = generateToken({ phone, userId: user._id, passwordReset: true }, "10m");
+    res.json({
+      message: "OTP verified",
+      tempToken,
+      user: {
+        name: user.name || "",
+        email: user.email || "",
+        phone: user.phone || phone,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.post("/password-reset/complete", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) {
+      return res.status(401).json({ message: "Temp token required" });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(authHeader.split(" ")[1], process.env.JWT_SECRET);
+    } catch {
+      return res.status(401).json({ message: "Invalid or expired token" });
+    }
+
+    if (!decoded.passwordReset || !decoded.phone || !decoded.userId) {
+      return res.status(401).json({ message: "Invalid token" });
+    }
+
+    const { password, email } = req.body;
+    const trimmedPassword = String(password || "").trim();
+    if (trimmedPassword.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters" });
+    }
+
+    const normalizedEmail = email != null && String(email).trim() !== ""
+      ? normalizeEmail(email)
+      : "";
+
+    const user = await User.findById(decoded.userId);
+    if (!user || normalizePhone(user.phone) !== normalizePhone(decoded.phone)) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (normalizedEmail) {
+      const existingEmail = await User.findOne({ email: normalizedEmail, _id: { $ne: user._id } });
+      if (existingEmail) {
+        return res.status(400).json({ message: "Email already registered" });
+      }
+      user.email = normalizedEmail;
+    }
+
+    user.password = await bcrypt.hash(trimmedPassword, 10);
+    await user.save();
+
+    res.json({
+      message: "Password updated successfully",
+      user: stripPassword(user),
+      token: generateToken({ id: user._id }),
     });
   } catch (error) {
     console.error(error);
@@ -269,8 +406,8 @@ router.post("/signup", async (req, res) => {
     if (!name || !email || !password || !phone)
       return res.status(400).json({ message: "All fields are required" });
 
-    const normalizedEmail = String(email).trim().toLowerCase();
-    const normalizedPhone = String(phone).trim();
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedPhone = normalizePhone(phone);
 
     const existingUser = await User.findOne({
       $or: [{ email: normalizedEmail }, { phone: normalizedPhone }],
@@ -320,7 +457,8 @@ router.post("/signup", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ email });
+    const normalizedEmail = normalizeEmail(email);
+    const user = await User.findOne({ email: normalizedEmail });
     if (!user)
       return res.status(401).json({ message: "Invalid email or password" });
     if (!user.password)
@@ -332,12 +470,9 @@ router.post("/login", async (req, res) => {
     if (!isMatch)
       return res.status(401).json({ message: "Invalid email or password" });
 
-    const userObj = user.toObject();
-    delete userObj.password;
-
     res.json({
       message: "Login successful",
-      user: userObj,
+      user: stripPassword(user),
       token: generateToken({ id: user._id }),
     });
   } catch (error) {

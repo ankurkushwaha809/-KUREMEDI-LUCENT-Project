@@ -238,6 +238,10 @@ export const AppProvider = ({ children }) => {
         user, token, login, logout, refreshUser,
         sendOtp: api.sendOtp,
         verifyOtp: api.verifyOtp,
+        loginWithPassword: api.loginWithPassword,
+        sendPasswordResetOtp: api.sendPasswordResetOtp,
+        verifyPasswordResetOtp: api.verifyPasswordResetOtp,
+        completePasswordReset: api.completePasswordReset,
         completeRegistration: api.completeRegistration,
 
         // Support System

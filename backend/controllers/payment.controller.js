@@ -17,6 +17,35 @@ import { calculateLinePricing } from "../utils/pricing.js";
 
 const MIN_CHECKOUT_AMOUNT_KEY = "minimumCheckoutAmount";
 
+function timingSafeSignatureEqual(expectedHex, providedHex) {
+  try {
+    const expected = Buffer.from(String(expectedHex || ""), "hex");
+    const provided = Buffer.from(String(providedHex || ""), "hex");
+    if (!expected.length || expected.length !== provided.length) return false;
+    return crypto.timingSafeEqual(expected, provided);
+  } catch {
+    return false;
+  }
+}
+
+async function fetchRazorpayPayment({ keyId, keySecret, paymentId }) {
+  const response = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}`,
+    },
+  });
+
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  return { ok: response.ok, status: response.status, data };
+}
+
 /**
  * CREATE PAYMENT ORDER (Checkout - Online / Wallet / Split)
  * POST /api/payment/create-order
@@ -389,9 +418,10 @@ export const createPaymentOrder = async (req, res) => {
  */
 export const verifyPayment = async (req, res) => {
   try {
+    const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
     const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 
-    if (!RAZORPAY_KEY_SECRET) {
+    if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
       return res.status(503).json({
         message: "Payment gateway not configured",
         code: "PAYMENT_GATEWAY_NOT_CONFIGURED",
@@ -410,7 +440,6 @@ export const verifyPayment = async (req, res) => {
     const order = await Order.findOne({
       razorpayOrderId,
       user: req.user._id,
-      status: "PENDING",
     }).populate("items.product");
 
     if (!order) {
@@ -420,17 +449,90 @@ export const verifyPayment = async (req, res) => {
       });
     }
 
+    if (order.status !== "PENDING") {
+      if (order.razorpayPaymentId && order.razorpayPaymentId === razorpayPaymentId) {
+        return res.status(200).json({
+          message: "Payment already verified",
+          code: "PAYMENT_ALREADY_VERIFIED",
+          order,
+        });
+      }
+
+      return res.status(409).json({
+        message: "Order is already processed with a different payment reference",
+        code: "ORDER_ALREADY_PROCESSED",
+      });
+    }
+
+    const duplicatePayment = await Order.findOne({
+      _id: { $ne: order._id },
+      razorpayPaymentId,
+    }).select("_id");
+
+    if (duplicatePayment) {
+      return res.status(409).json({
+        message: "Payment reference already used",
+        code: "DUPLICATE_PAYMENT_REFERENCE",
+      });
+    }
+
     const body = razorpayOrderId + "|" + razorpayPaymentId;
     const expected = crypto
       .createHmac("sha256", RAZORPAY_KEY_SECRET)
       .update(body)
       .digest("hex");
-    const verified = expected === razorpaySignature;
+    const verified = timingSafeSignatureEqual(expected, razorpaySignature);
 
     if (!verified) {
       return res.status(400).json({
         message: "Payment verification failed",
         code: "PAYMENT_VERIFICATION_FAILED",
+      });
+    }
+
+    const gatewayPayment = await fetchRazorpayPayment({
+      keyId: RAZORPAY_KEY_ID,
+      keySecret: RAZORPAY_KEY_SECRET,
+      paymentId: razorpayPaymentId,
+    });
+
+    if (!gatewayPayment.ok || !gatewayPayment.data?.id) {
+      return res.status(502).json({
+        message: "Unable to validate payment with Razorpay",
+        code: "RAZORPAY_VERIFY_FETCH_FAILED",
+      });
+    }
+
+    const paymentData = gatewayPayment.data;
+    const expectedAmountPaise = Math.round(Number(order.razorpayAmount || 0) * 100);
+    const paymentAmountPaise = Number(paymentData.amount || 0);
+    const paymentStatus = String(paymentData.status || "").toLowerCase();
+
+    if (paymentData.order_id !== razorpayOrderId) {
+      return res.status(400).json({
+        message: "Payment order mismatch",
+        code: "PAYMENT_ORDER_MISMATCH",
+      });
+    }
+
+    if (String(paymentData.currency || "") !== "INR") {
+      return res.status(400).json({
+        message: "Invalid payment currency",
+        code: "PAYMENT_CURRENCY_MISMATCH",
+      });
+    }
+
+    if (paymentAmountPaise !== expectedAmountPaise) {
+      return res.status(400).json({
+        message: "Payment amount mismatch",
+        code: "PAYMENT_AMOUNT_MISMATCH",
+      });
+    }
+
+    if (!["authorized", "captured"].includes(paymentStatus)) {
+      return res.status(400).json({
+        message: "Payment is not in a valid state",
+        code: "PAYMENT_NOT_AUTHORIZED",
       });
     }
 

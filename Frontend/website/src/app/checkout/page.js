@@ -277,6 +277,18 @@ export default function CheckoutPage() {
         return;
       }
 
+      const isLocalhost =
+        typeof window !== "undefined" &&
+        /^(localhost|127\.0\.0\.1|\[::1\])$/i.test(window.location.hostname);
+      if (isLocalhost && /^rzp_live_/i.test(String(res.keyId || ""))) {
+        showToast(
+          "Live Razorpay key cannot be used on localhost. Use test key (rzp_test_...) for local testing.",
+          "error",
+        );
+        setPlacing(false);
+        return;
+      }
+
       const amountInPaise = Math.round((res.amount ?? razorpayAmount) * 100);
 
       setPaymentModal({
