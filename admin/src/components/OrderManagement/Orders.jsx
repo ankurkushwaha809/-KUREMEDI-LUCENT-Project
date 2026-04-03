@@ -1,0 +1,329 @@
+"use client";
+
+import { Download, Loader2 } from "lucide-react";
+import React, { useCallback, useEffect, useState } from "react";
+import { useContextApi } from "../../hooks/useContextApi";
+import toast from "react-hot-toast";
+
+const TABS = [
+  { key: "all", label: "All Orders" },
+  { key: "PENDING", label: "Pending" },
+  { key: "processing", label: "Processing" },
+  { key: "DISPATCHED", label: "Shipped" },
+  { key: "DELIVERED", label: "Delivered" },
+  { key: "CANCELLED", label: "Cancelled" },
+];
+
+const STATUS_OPTIONS = [
+  "PLACED",
+  "CONFIRMED",
+  "DISPATCHED",
+  "DELIVERED",
+  "CANCELLED",
+];
+
+const formatDate = (d) => {
+  if (!d) return "-";
+  const dt = new Date(d);
+  return dt.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+
+
+const Orders = () => {
+  const { getallOrders, updateOrderStatus, setActiveTab: setGlobalActiveTab, setSelectedOrderId, getOrderById } = useContextApi();
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("all");
+  const [updatingId, setUpdatingId] = useState(null);
+
+
+
+
+  const handleViewOrder = (orderId) => {
+    console.log("Clicked Order ID:", orderId);
+    setSelectedOrderId(orderId);
+    setGlobalActiveTab("Order Detail");
+  };
+
+  const fetchOrderById = async (orderId) => {
+    try {
+      const response = await getOrderById(orderId);
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error fetching order by ID:", error);
+      throw error;
+    }
+  };
+
+
+  const fetchOrders = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await getallOrders();
+      // API returns array directly as response body; axios puts it in res.data
+      let data = res?.data;
+      if (!Array.isArray(data) && data?.data) data = data.data;
+      setOrders(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("fetch orders error", err);
+      toast.error(err?.response?.data?.message || "Failed to load orders");
+      setOrders([]);
+    } finally {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetch on mount only
+  }, []);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
+
+  const filteredOrders = orders.filter((o) => {
+    const s = (o.status || "").toUpperCase();
+    if (activeTab === "all") return true;
+    if (activeTab === "processing")
+      return ["PLACED", "CONFIRMED"].includes(s);
+    return s === activeTab;
+  });
+
+  const stats = {
+    total: orders.length,
+    processing: orders.filter((o) =>
+      ["PLACED", "CONFIRMED"].includes((o.status || "").toUpperCase())
+    ).length,
+    shipped: orders.filter((o) =>
+      (o.status || "").toUpperCase() === "DISPATCHED"
+    ).length,
+    revenue: orders.reduce((sum, o) => sum + (o.totalAmt || 0), 0),
+  };
+
+  const tabCounts = {
+    all: orders.length,
+    PENDING: orders.filter((o) => (o.status || "").toUpperCase() === "PENDING")
+      .length,
+    processing: stats.processing,
+    DISPATCHED: stats.shipped,
+    DELIVERED: orders.filter((o) =>
+      (o.status || "").toUpperCase() === "DELIVERED"
+    ).length,
+    CANCELLED: orders.filter((o) =>
+      (o.status || "").toUpperCase() === "CANCELLED"
+    ).length,
+  };
+
+  const handleStatusChange = async (orderId, newStatus) => {
+    console.log("orderId", orderId);
+    setUpdatingId(orderId);
+    try {
+      await updateOrderStatus(orderId, "status", newStatus);
+      toast.success("Status updated");
+      await fetchOrders();
+    } catch {
+      toast.error("Failed to update status");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+
+
+  return (
+    <div className="p-6 bg-gray-50 min-h-screen">
+      <div className="flex justify-between items-start mb-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Order Management
+          </h1>
+          <p className="text-gray-500">
+            Track and manage all orders with complete details
+          </p>
+        </div>
+
+        <button
+          onClick={fetchOrders}
+          disabled={loading}
+          className="flex items-center gap-2 px-4 py-2 bg-white border rounded-lg text-sm hover:bg-gray-100 disabled:opacity-70"
+        >
+          {loading ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <Download size={16} />
+          )}
+          Refresh
+        </button>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-6">
+        {TABS.map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition
+              ${activeTab === key
+                ? "bg-blue-600 text-white"
+                : "bg-white border text-gray-700 hover:bg-gray-100"
+              }`}
+          >
+            {label} ({tabCounts[key] ?? 0})
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <StatCard title="Total Orders" value={stats.total} />
+        <StatCard title="Processing" value={stats.processing} />
+        <StatCard title="Shipped" value={stats.shipped} />
+        <StatCard title="Total Revenue" value={`₹${stats.revenue.toFixed(0)}`} />
+      </div>
+
+      <div className="bg-white rounded-xl shadow overflow-hidden overflow-x-auto">
+        <table className="w-full text-sm min-w-[900px]">
+          <thead className="bg-gray-50 text-gray-600">
+            <tr>
+              <th className="p-3 text-left">Order ID</th>
+              <th className="p-3 text-left">Retailer</th>
+              <th className="p-3 text-left">Items</th>
+              <th className="p-3 text-left">Amount</th>
+              <th className="p-3 text-left">Payment</th>
+              <th className="p-3 text-left">Order Date</th>
+              <th className="p-3 text-left">Status</th>
+              <th className="p-3 text-left">Shipment / AWB</th>
+              <th className="p-3 text-left">Actions</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan="9" className="text-center py-10">
+                  <Loader2 className="animate-spin mx-auto h-8 w-8 text-blue-500" />
+                </td>
+              </tr>
+            ) : filteredOrders.length === 0 ? (
+              <tr>
+                <td colSpan="9" className="text-center py-10 text-gray-500">
+                  No orders found
+                </td>
+              </tr>
+            ) : (
+              filteredOrders.map((order) => {
+                const userName =
+                  order.user?.name ||
+                  order.user?.phone ||
+                  (typeof order.user === "string" ? order.user : "-");
+                const itemCount =
+                  (order.cartItems || []).reduce((s, i) => s + (i.quantity || 0), 0) || 0;
+                const itemNames =
+                  (order.cartItems || [])
+                    .slice(0, 2)
+                    .map((i) => i.name || i.productId?.name || "Item")
+                    .join(", ") || "-";
+                const status = (order.status || "PLACED").toUpperCase();
+                const isUpdating = updatingId === order._id;
+
+                return (
+                  <tr
+                    key={order._id}
+                    className="border-t border-gray-100 hover:bg-gray-50"
+                  >
+                    <td className="p-3">
+                      <span className="font-mono text-xs text-gray-600">
+                        {String(order._id).slice(-8)}
+                      </span>
+                    </td>
+                    <td className="p-3">{userName}</td>
+                    <td className="p-3">
+                      <span title={itemNames}>{itemCount} items</span>
+                    </td>
+                    <td className="p-3 font-medium">₹{order.totalAmt ?? 0}</td>
+                    <td className="p-3">
+                      <span
+                        className={`px-2 py-0.5 rounded text-xs ${(order.paymentMethod || "ONLINE") === "ONLINE"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-amber-100 text-amber-800"
+                          }`}
+                      >
+                        {order.paymentMethod || "ONLINE"}
+                      </span>
+                    </td>
+                    <td className="p-3 text-gray-600">
+                      {formatDate(order.orderDate || order.createdAt)}
+                    </td>
+                    <td className="p-3">
+                      <span
+                        className={`px-2 py-0.5 rounded text-xs ${status === "DELIVERED"
+                          ? "bg-green-100 text-green-800"
+                          : status === "CANCELLED"
+                            ? "bg-red-100 text-red-800"
+                            : status === "DISPATCHED"
+                              ? "bg-blue-100 text-blue-800"
+                              : "bg-amber-100 text-amber-800"
+                          }`}
+                      >
+                        {status}
+                      </span>
+                    </td>
+                    <td className="p-3 text-xs text-gray-600 font-mono">
+                      {order.shiprocketShipmentId ? (
+                        <span title={`AWB: ${order.shiprocketAwb || "—"}`}>
+                          ID: {String(order.shiprocketShipmentId).slice(0, 8)}
+                          {order.shiprocketAwb ? ` · ${order.shiprocketAwb}` : ""}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleViewOrder(order._id)}
+                          className="text-blue-600 text-xs hover:text-blue-800 font-medium px-2 py-1 hover:bg-blue-50 rounded transition"
+                        >
+                          View
+                        </button>
+                        <select
+                          value={status}
+                          onChange={(e) =>
+                            handleStatusChange(order._id, e.target.value)
+                          }
+                          disabled={isUpdating}
+                          className="text-xs border rounded px-2 py-1 bg-white disabled:opacity-60"
+                        >
+                          {STATUS_OPTIONS.map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+                        {isUpdating && (
+                          <Loader2
+                            size={14}
+                            className="inline ml-1 animate-spin text-blue-500"
+                          />
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+const StatCard = ({ title, value }) => (
+  <div className="bg-white rounded-xl shadow p-5">
+    <p className="text-sm text-gray-500 mb-1">{title}</p>
+    <h3 className="text-2xl font-bold text-gray-900">{value}</h3>
+  </div>
+);
+
+export default Orders;

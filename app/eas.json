@@ -1,0 +1,41 @@
+{
+  "cli": { "version": ">= 16.32.0", "appVersionSource": "remote" },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "NODE_VERSION": "20",
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "1",
+        "EXPO_PUBLIC_API_URL": "https://api.kuremedi.com/api"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "NODE_VERSION": "20",
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "1",
+        "EXPO_PUBLIC_API_URL": "https://api.kuremedi.com/api"
+      }
+    },
+    "production": {
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "autoIncrement": true,
+
+      "env": {
+        "NODE_VERSION": "20",
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "1",
+        "EXPO_PUBLIC_API_URL": "https://api.kuremedi.com/api"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "track": "production"
+      }
+    }
+  }
+}

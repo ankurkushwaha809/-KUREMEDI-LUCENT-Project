@@ -1,0 +1,271 @@
+import mongoose from "mongoose";
+import Product from "../model/Product.js";
+import Category from "../model/Category.js";
+import Brand from "../model/Brand.js";
+
+const parseProductBody = (body) => {
+  const obj = { ...body };
+  if (obj.mrp !== undefined) obj.mrp = Number(obj.mrp);
+  if (obj.sellingPrice !== undefined) obj.sellingPrice = Number(obj.sellingPrice);
+  if (obj.discountPercent !== undefined) obj.discountPercent = Number(obj.discountPercent);
+  if (obj.gstPercent !== undefined) obj.gstPercent = Number(obj.gstPercent);
+  if (obj.stockQuantity !== undefined) obj.stockQuantity = Number(obj.stockQuantity);
+  if (obj.minStockLevel !== undefined) obj.minStockLevel = Number(obj.minStockLevel);
+  if (obj.minOrderQty !== undefined) obj.minOrderQty = Number(obj.minOrderQty);
+  if (obj.expiryDate !== undefined && obj.expiryDate)
+    obj.expiryDate = new Date(obj.expiryDate);
+  if (obj.isActive !== undefined)
+    obj.isActive = obj.isActive === "true" || obj.isActive === true;
+  if (obj.prescriptionRequired !== undefined)
+    obj.prescriptionRequired = obj.prescriptionRequired === "true" || obj.prescriptionRequired === true;
+  if (obj.category === "" || obj.category === "null") obj.category = null;
+  if (obj.brand === "" || obj.brand === "null") obj.brand = null;
+  delete obj.productImages; // handled from files
+  return obj;
+};
+
+export const createProduct = async (req, res) => {
+  try {
+    const data = parseProductBody(req.body);
+    const name = (data.productName || "").toString().trim();
+    if (!name) {
+      return res.status(400).json({ success: false, message: "Product name is required" });
+    }
+    const sellingPrice = Number(data.sellingPrice);
+    const mrp = Number(data.mrp);
+    if (sellingPrice == null || isNaN(sellingPrice) || sellingPrice < 0) {
+      return res.status(400).json({ success: false, message: "Valid selling price is required" });
+    }
+    if (mrp == null || isNaN(mrp) || mrp < 0) {
+      return res.status(400).json({ success: false, message: "Valid MRP is required" });
+    }
+    if (!data.category || !mongoose.Types.ObjectId.isValid(data.category)) {
+      return res.status(400).json({ success: false, message: "Category is required" });
+    }
+    if (!data.brand || !mongoose.Types.ObjectId.isValid(data.brand)) {
+      return res.status(400).json({ success: false, message: "Brand is required" });
+    }
+    if (req.files?.length) {
+      data.productImages = req.files.map((f) => f.path);
+    } else if (Array.isArray(req.body.productImages)) {
+      data.productImages = req.body.productImages;
+    } else {
+      data.productImages = [];
+    }
+    const product = await Product.create(data);
+    await product.populate(["category", "brand"]);
+    res.status(201).json(product);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+export const updateProduct = async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) return res.status(404).json({ message: "Product not found" });
+
+    const data = parseProductBody(req.body || {});
+    const name = (data.productName ?? product.productName ?? "").toString().trim();
+    if (!name) {
+      return res.status(400).json({ success: false, message: "Product name is required" });
+    }
+    const sellingPrice = Number(data.sellingPrice ?? product.sellingPrice);
+    const mrp = Number(data.mrp ?? product.mrp);
+    if (sellingPrice == null || isNaN(sellingPrice) || sellingPrice < 0) {
+      return res.status(400).json({ success: false, message: "Valid selling price is required" });
+    }
+    if (mrp == null || isNaN(mrp) || mrp < 0) {
+      return res.status(400).json({ success: false, message: "Valid MRP is required" });
+    }
+    const catId = data.category ?? product.category;
+    const brandId = data.brand ?? product.brand;
+    if (!catId || !mongoose.Types.ObjectId.isValid(catId)) {
+      return res.status(400).json({ success: false, message: "Category is required" });
+    }
+    if (!brandId || !mongoose.Types.ObjectId.isValid(brandId)) {
+      return res.status(400).json({ success: false, message: "Brand is required" });
+    }
+
+    // Handle images: base = existingProductImages (if sent) or current, then add new files
+    let baseImages = product.productImages || [];
+    if (req.body?.existingProductImages) {
+      try {
+        const parsed = typeof req.body.existingProductImages === "string"
+          ? JSON.parse(req.body.existingProductImages)
+          : req.body.existingProductImages;
+        baseImages = Array.isArray(parsed) ? parsed : baseImages;
+      } catch {
+        baseImages = product.productImages || [];
+      }
+    }
+    if (req.files?.length) {
+      const newPaths = req.files.map((f) => f.path);
+      data.productImages = [...baseImages, ...newPaths].slice(0, 6);
+    } else if (req.body?.existingProductImages !== undefined) {
+      data.productImages = baseImages.slice(0, 6);
+    }
+
+    Object.assign(product, data);
+    await product.save();
+    await product.populate(["category", "brand"]);
+    res.json(product);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// --------------------
+// BULK IMPORT
+// --------------------
+const COL_MAP = {
+  "product name": "productName",
+  "productname": "productName",
+  "name": "productName",
+  "mrp": "mrp",
+  "selling price": "sellingPrice",
+  "sellingprice": "sellingPrice",
+  "price": "sellingPrice",
+  "composition": "composition",
+  "manufacturer": "manufacturer",
+  "category": "categoryName",
+  "category name": "categoryName",
+  "brand": "brandName",
+  "brand name": "brandName",
+  "discount": "discountPercent",
+  "discount %": "discountPercent",
+  "discountpercent": "discountPercent",
+  "gst": "gstPercent",
+  "gst %": "gstPercent",
+  "gstpercent": "gstPercent",
+  "hsn code": "hsnCode",
+  "hsncode": "hsnCode",
+  "batch number": "batchNumber",
+  "batchnumber": "batchNumber",
+  "expiry date": "expiryDate",
+  "expirydate": "expiryDate",
+  "stock": "stockQuantity",
+  "stock qty": "stockQuantity",
+  "stockquantity": "stockQuantity",
+  "min stock": "minStockLevel",
+  "minstocklevel": "minStockLevel",
+  "min order": "minOrderQty",
+  "minorderqty": "minOrderQty",
+  "active": "isActive",
+  "isactive": "isActive",
+  "prescription required": "prescriptionRequired",
+  "prescriptionrequired": "prescriptionRequired",
+};
+
+const toNum = (v) => {
+  if (v === "" || v == null) return undefined;
+  const n = Number(String(v).replace(/[^0-9.-]/g, ""));
+  return isNaN(n) ? undefined : n;
+};
+
+const toBool = (v) => {
+  if (v === "" || v == null) return undefined;
+  const s = String(v).toLowerCase().trim();
+  if (["true", "1", "yes", "y"].includes(s)) return true;
+  if (["false", "0", "no", "n"].includes(s)) return false;
+  return undefined;
+};
+
+export const bulkImportProducts = async (req, res) => {
+  try {
+    const { products } = req.body;
+    if (!Array.isArray(products) || products.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No products to import. Send { products: [...] }",
+      });
+    }
+
+    const categories = await Category.find();
+    const brands = await Brand.find();
+    const catByName = Object.fromEntries(categories.map((c) => [String(c.name).toLowerCase().trim(), c._id]));
+    const brandByName = Object.fromEntries(brands.map((b) => [String(b.name).toLowerCase().trim(), b._id]));
+
+    const created = [];
+    const errors = [];
+
+    for (let i = 0; i < products.length; i++) {
+      const row = products[i];
+      try {
+        const obj = {};
+        for (const [key, val] of Object.entries(row)) {
+          const k = COL_MAP[String(key).toLowerCase().trim()] || key;
+          obj[k] = val;
+        }
+
+        const productName = (obj.productName || obj.name || "").toString().trim();
+        if (!productName) {
+          errors.push({ row: i + 1, message: "Product name is required" });
+          continue;
+        }
+
+        const mrp = toNum(obj.mrp);
+        const sellingPrice = toNum(obj.sellingPrice) ?? toNum(obj.price);
+        if (mrp == null || mrp < 0) {
+          errors.push({ row: i + 1, message: "Valid MRP is required" });
+          continue;
+        }
+        if (sellingPrice == null || sellingPrice < 0) {
+          errors.push({ row: i + 1, message: "Valid Selling Price is required" });
+          continue;
+        }
+
+        let categoryId = obj.category;
+        if (obj.categoryName && !categoryId) {
+          categoryId = catByName[String(obj.categoryName).toLowerCase().trim()] || null;
+        }
+        if (typeof categoryId === "string" && !mongoose.Types.ObjectId.isValid(categoryId)) categoryId = null;
+
+        let brandId = obj.brand;
+        if (obj.brandName && !brandId) {
+          brandId = brandByName[String(obj.brandName).toLowerCase().trim()] || null;
+        }
+        if (typeof brandId === "string" && !mongoose.Types.ObjectId.isValid(brandId)) brandId = null;
+
+        const product = await Product.create({
+          productName,
+          mrp,
+          sellingPrice,
+          composition: (obj.composition || "").toString().trim() || undefined,
+          manufacturer: (obj.manufacturer || "").toString().trim() || undefined,
+          category: categoryId || undefined,
+          brand: brandId || undefined,
+          discountPercent: toNum(obj.discountPercent) ?? 0,
+          gstPercent: toNum(obj.gstPercent) ?? 0,
+          hsnCode: (obj.hsnCode || "").toString().trim() || undefined,
+          batchNumber: (obj.batchNumber || "").toString().trim() || undefined,
+          expiryDate: obj.expiryDate ? new Date(obj.expiryDate) : undefined,
+          stockQuantity: toNum(obj.stockQuantity) ?? 0,
+          minStockLevel: toNum(obj.minStockLevel) ?? 0,
+          minOrderQty: toNum(obj.minOrderQty) ?? 1,
+          isActive: toBool(obj.isActive) ?? true,
+          prescriptionRequired: toBool(obj.prescriptionRequired) ?? false,
+          productImages: [],
+        });
+
+        created.push(product);
+      } catch (err) {
+        errors.push({ row: i + 1, message: err.message || "Failed to create product" });
+      }
+    }
+
+    res.json({
+      success: true,
+      created: created.length,
+      failed: errors.length,
+      total: products.length,
+      errors: errors.length > 0 ? errors : undefined,
+    });
+  } catch (error) {
+    console.error("Bulk import error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Bulk import failed",
+    });
+  }
+};

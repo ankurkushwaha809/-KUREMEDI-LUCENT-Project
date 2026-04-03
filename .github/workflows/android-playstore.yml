@@ -1,0 +1,47 @@
+# Build AAB and auto-submit to Google Play Store (internal track)
+# Trigger: push to main or manual dispatch
+name: Android AAB → Play Store
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - '.github/workflows/android-playstore.yml'
+  workflow_dispatch:
+
+jobs:
+  build-and-submit:
+    name: Build AAB and submit to Play Store
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: mrapp/package-lock.json
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Build Android AAB (production)
+        working-directory: app
+        run: eas build --platform android --profile production --non-interactive
+
+      - name: Submit to Google Play (production track)
+        working-directory: app
+        run: eas submit --platform android --latest --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
