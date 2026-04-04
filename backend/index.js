@@ -24,6 +24,7 @@ import walletRoutes from "./routes/wallet.routes.js";
 import configRoutes from "./routes/config.routes.js";
 import agentRoutes from "./routes/agent.routes.js";
 import supportRoutes from "./routes/support.routes.js";
+import marketingRoutes from "./routes/marketing.routes.js";
 
 connectDB();
 
@@ -38,6 +39,8 @@ if (!fs.existsSync("uploads/kyc"))
   fs.mkdirSync("uploads/kyc", { recursive: true });
 if (!fs.existsSync("uploads/agents"))
   fs.mkdirSync("uploads/agents", { recursive: true });
+if (!fs.existsSync("uploads/banners"))
+  fs.mkdirSync("uploads/banners", { recursive: true });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -45,7 +48,7 @@ const PORT = process.env.PORT || 5000;
 // Middlewares
 app.use(cors({
   origin: "*",
-  methods: ["GET", "POST", "PUT", "DELETE"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
 app.use(express.json());
@@ -81,6 +84,7 @@ app.use("/api/wallet", walletRoutes);
 app.use("/api/config", configRoutes);
 app.use("/api/agents", agentRoutes);
 app.use("/api/support", supportRoutes);
+app.use("/api/marketing", marketingRoutes);
 
 // Error handler (e.g. multer LIMIT_FILE_SIZE) – must have 4 args
 app.use((err, req, res, next) => {

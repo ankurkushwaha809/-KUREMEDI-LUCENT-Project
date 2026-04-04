@@ -10,6 +10,15 @@ import {
 
 const router = express.Router();
 
+const toTrackingUrl = (awb, trackingUrl) => {
+  if (!awb) return null;
+  const safe = `https://shiprocket.co/tracking/${encodeURIComponent(awb)}`;
+  if (!trackingUrl) return safe;
+  if (trackingUrl.includes("track.shiprocket.in")) return safe;
+  if (trackingUrl.includes("shiprocket.in/shipment-tracking")) return safe;
+  return trackingUrl;
+};
+
 // ============ ADMIN (no auth - admin may use separate session) ============
 
 /**
@@ -24,6 +33,7 @@ router.get("/orders", async (req, res) => {
       .sort({ createdAt: -1 });
 
     const mapped = orders.map((o) => ({
+      
       _id: o._id,
       orderDate: o.createdAt,
       totalAmt: o.payableAmount ?? o.totalAmount ?? 0,
@@ -48,7 +58,7 @@ router.get("/orders", async (req, res) => {
       shiprocketShipmentId: o.shiprocketShipmentId || null,
       shiprocketAwb: o.shiprocketAwb || null,
       shiprocketLabelUrl: o.shiprocketLabelUrl || null,
-      trackingUrl: o.trackingUrl || null,
+      trackingUrl: toTrackingUrl(o.shiprocketAwb, o.trackingUrl),
     }));
 
     res.json(mapped);
@@ -105,7 +115,7 @@ router.get("/orders/:orderId", async (req, res) => {
       shiprocketShipmentId: order.shiprocketShipmentId || null,
       shiprocketAwb: order.shiprocketAwb || null,
       shiprocketLabelUrl: order.shiprocketLabelUrl || null,
-      trackingUrl: order.trackingUrl || null,
+      trackingUrl: toTrackingUrl(order.shiprocketAwb, order.trackingUrl),
     };
 
     res.json({ data: mapped });

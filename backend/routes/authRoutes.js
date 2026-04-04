@@ -10,6 +10,7 @@ import { fileURLToPath } from "url";
 import User from "../model/User.js";
 import Agent from "../model/Agent.js";
 import Otp from "../model/Otp.js";
+import DeletedUserHistory from "../model/DeletedUserHistory.js";
 import { protect } from "../middleware/protect.js";
 import { authorizeRoles } from "../middleware/authorize.js";
 import { requireAgent } from "../middleware/requireAgent.js";
@@ -117,6 +118,14 @@ router.post("/verify-otp", async (req, res) => {
 
     const user = await User.findOne({ phone: normalizedPhone });
     if (user) {
+      if (user.isBlocked) {
+        const reason = String(user.blockReason || "").trim();
+        return res.status(403).json({
+          message: reason
+            ? `Your account is blocked. Reason: ${reason}. Please contact support.`
+            : "Your account is blocked. Please contact support.",
+        });
+      }
       const isMrApp = String(req.headers["x-app"] || "").toLowerCase() === "mr";
       if (isMrApp && user.role !== "agent") {
         return res.status(403).json({
@@ -465,6 +474,12 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({
         message: "This account uses OTP login. Use phone + OTP.",
       });
+    if (user.isBlocked)
+      return res.status(403).json({
+        message: user.blockReason
+          ? `Your account is blocked. Reason: ${user.blockReason}. Please contact support.`
+          : "Your account is blocked. Please contact support.",
+      });
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch)
@@ -669,11 +684,107 @@ router.get("/users", protect, authorizeRoles("admin"), async (req, res) => {
 });
 
 // ----------------------
+// Get deleted users history (admin only)
+// ----------------------
+router.get("/users/deleted-history", protect, authorizeRoles("admin"), async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const history = await DeletedUserHistory.find()
+      .sort({ deletedAt: -1 })
+      .limit(limit)
+      .lean();
+    res.json({ total: history.length, history });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ----------------------
+// Delete user (admin only)
+// ----------------------
+router.delete("/users/:userId", protect, authorizeRoles("admin"), async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (String(req.user?._id) === String(userId)) {
+      return res.status(400).json({ message: "You cannot delete your own admin account" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.role === "agent") {
+      const Agent = (await import("../model/Agent.js")).default;
+      await Agent.deleteOne({ user: user._id });
+    }
+
+    await DeletedUserHistory.create({
+      deletedUserId: String(user._id),
+      name: user.name || "",
+      email: user.email || "",
+      phone: user.phone || "",
+      role: user.role || "",
+      kyc: user.kyc || "",
+      isBlocked: !!user.isBlocked,
+      deletedBy: req.user?._id || null,
+      deletedByEmail: req.user?.email || "",
+      deletedAt: new Date(),
+    });
+
+    await User.deleteOne({ _id: user._id });
+    res.json({ message: "User deleted successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ----------------------
+// Block or unblock user (admin only)
+// ----------------------
+router.patch("/users/:userId/block", protect, authorizeRoles("admin"), async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { isBlocked, reason } = req.body;
+
+    if (typeof isBlocked !== "boolean") {
+      return res.status(400).json({ message: "isBlocked must be boolean" });
+    }
+    if (isBlocked && !String(reason || "").trim()) {
+      return res.status(400).json({ message: "Block reason is required" });
+    }
+    if (String(req.user?._id) === String(userId) && isBlocked) {
+      return res.status(400).json({ message: "You cannot block your own account" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    user.isBlocked = isBlocked;
+    user.blockReason = isBlocked ? String(reason || "").trim() : "";
+    await user.save();
+
+    res.json({
+      message: isBlocked ? "User blocked successfully" : "User unblocked successfully",
+      user: stripPassword(user),
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ----------------------
 // Update KYC status (admin only)
 // ----------------------
 router.put("/kyc-status/:userId", protect, authorizeRoles("admin"), async (req, res) => {
   try {
     let status = req.body?.status ?? req.body?.kycStatus;
+    const rejectionReason = String(req.body?.rejectionReason || "").trim();
     if (status === undefined && typeof req.body?.isVerified === "boolean")
       status = req.body.isVerified ? "APPROVED" : "REJECTED";
     const valid = ["APPROVED", "REJECTED", "PENDING", "BLANK"];
@@ -681,6 +792,9 @@ router.put("/kyc-status/:userId", protect, authorizeRoles("admin"), async (req, 
       return res
         .status(400)
         .json({ message: `Status must be one of: ${valid.join(", ")}` });
+    if (status === "REJECTED" && !rejectionReason) {
+      return res.status(400).json({ message: "Rejection reason is required for REJECTED status" });
+    }
 
     const user = await User.findById(req.params.userId);
     if (!user)
@@ -689,6 +803,7 @@ router.put("/kyc-status/:userId", protect, authorizeRoles("admin"), async (req, 
     const wasApproved = user.kyc === "APPROVED";
     user.kyc = status;
     user.isVerified = status === "APPROVED";
+    user.kycRejectionReason = status === "REJECTED" ? rejectionReason : "";
     await user.save();
 
     // Referral rewards when KYC approved first time (referee = user whose KYC was just approved)

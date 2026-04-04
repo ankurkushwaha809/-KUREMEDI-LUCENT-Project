@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight, Eye, EyeOff, Loader2, Lock, Mail } from 'lucide-react';
 import { useAppContext } from '@/context/context';
 import { showToast } from '@/utils/toast';
@@ -24,16 +24,34 @@ function LoginField({ icon: Icon, error, className = '', ...props }) {
 
 export default function LoginPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { token, login, loginWithPassword } = useAppContext();
 
     const [form, setForm] = useState({ email: '', password: '' });
     const [errors, setErrors] = useState({});
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const [blockedMessage, setBlockedMessage] = useState('');
 
     useEffect(() => {
         if (token) router.replace('/');
     }, [router, token]);
+
+    useEffect(() => {
+        if (searchParams.get('blocked') !== '1') {
+            setBlockedMessage('');
+            return;
+        }
+        let msg = 'Your account is blocked. Please contact support.';
+        if (typeof window !== 'undefined') {
+            const stored = sessionStorage.getItem('blocked_message');
+            if (stored) {
+                msg = stored;
+                sessionStorage.removeItem('blocked_message');
+            }
+        }
+        setBlockedMessage(msg);
+    }, [searchParams]);
 
     const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
 
@@ -83,6 +101,15 @@ export default function LoginPage() {
                         <p className="mt-3 text-sm leading-6 text-slate-600">
                             Login with your email and password. If you forget either, use recovery to reset on a separate page.
                         </p>
+
+                        {blockedMessage ? (
+                            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                                <p className="font-semibold">{blockedMessage}</p>
+                                <Link href="/support" className="mt-1 inline-block text-xs font-semibold underline underline-offset-2 text-red-900">
+                                    Contact Customer Support
+                                </Link>
+                            </div>
+                        ) : null}
 
                         <div className="mt-7 space-y-4">
                             <LoginField

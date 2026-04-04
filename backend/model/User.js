@@ -64,9 +64,12 @@ const userSchema = new mongoose.Schema(
       enum: ["APPROVED", "PENDING", "REJECTED", "BLANK"],
       default: "BLANK",
     },
+    kycRejectionReason: { type: String, trim: true, default: "" },
 
     role: { type: String, enum: ["user", "vendor", "admin", "agent"], default: "user" },
     isVerified: { type: Boolean, default: false },
+    isBlocked: { type: Boolean, default: false },
+    blockReason: { type: String, trim: true, default: "" },
     expoPushTokens: [{ type: String, trim: true }],
   },
   { timestamps: true }

@@ -25,6 +25,9 @@ function mapCartItem(item) {
     price: Number(p.finalSellingPrice ?? p.sellingPrice ?? 0),
     image: imgUrl,
     qty: item.quantity ?? 1,
+    stockQuantity: p.stockQuantity != null ? Number(p.stockQuantity) : undefined,
+    gstPercent: Number(p.gstPercent ?? 0),
+    gstAmount: Number(p.gstAmount ?? item?.pricing?.gstAmount ?? 0),
     minOrderQty: p.minOrderQty != null ? Number(p.minOrderQty) : undefined,
   };
 }
@@ -254,6 +257,7 @@ export const AppProvider = ({ children }) => {
         getProducts: api.getProducts,
         getProductById: api.getProductById,
         getBrands: api.getBrands,
+        getMarketingBanners: api.getMarketingBanners,
         getImageUrl, getProductImageUrl, getBrandImageUrl,
 
         // Cart & Wishlist

@@ -667,19 +667,47 @@ export const updateOrderStatus = async (req, res) => {
         try {
           let awbRes = await generateAWB(order.shiprocketShipmentId);
           if (Array.isArray(awbRes) && awbRes.length) awbRes = awbRes[0];
-          const awbCode =
-            awbRes?.awb_code ??
-            awbRes?.awb ??
-            awbRes?.data?.awb_code ??
-            awbRes?.data?.awb ??
-            (typeof awbRes === "object" && awbRes !== null ? Object.values(awbRes).find((v) => typeof v === "string" && /^\d{10,14}$/.test(v)) : null);
+
+          const readAwbFromKnownKeys = (payload) => {
+            const direct = [
+              payload?.awb_code,
+              payload?.awb,
+              payload?.data?.awb_code,
+              payload?.data?.awb,
+              payload?.response?.awb_code,
+              payload?.response?.awb,
+              payload?.response?.data?.awb_code,
+              payload?.response?.data?.awb,
+            ].find((v) => typeof v === "string" || typeof v === "number");
+            if (direct != null && String(direct).trim()) return String(direct).trim();
+
+            // Safety: only pick nested values whose key name explicitly includes "awb".
+            const scan = (node) => {
+              if (!node || typeof node !== "object") return null;
+              for (const [key, value] of Object.entries(node)) {
+                if (key.toLowerCase().includes("awb") && (typeof value === "string" || typeof value === "number")) {
+                  const text = String(value).trim();
+                  if (text) return text;
+                }
+                if (value && typeof value === "object") {
+                  const nested = scan(value);
+                  if (nested) return nested;
+                }
+              }
+              return null;
+            };
+
+            return scan(payload);
+          };
+
+          const awbCode = readAwbFromKnownKeys(awbRes);
           if (awbCode) {
             order.shiprocketAwb = String(awbCode);
             order.trackingUrl =
               awbRes?.tracking_url ??
               awbRes?.tracking ??
               awbRes?.tracking_url_short ??
-              `https://track.shiprocket.in/?awb=${encodeURIComponent(awbCode)}`;
+              `https://shiprocket.co/tracking/${encodeURIComponent(awbCode)}`;
 
             // After AWB: generate label, manifest, schedule pickup
             try {
@@ -698,6 +726,12 @@ export const updateOrderStatus = async (req, res) => {
             } catch (pickupErr) {
               console.error("Shiprocket pickup (after AWB):", pickupErr.message);
             }
+          } else {
+            awbError = {
+              message: "Shiprocket did not return a valid AWB code for this shipment.",
+              response: awbRes,
+            };
+            console.error("Shiprocket AWB missing in response:", awbRes);
           }
         } catch (awbErr) {
           awbError = awbErr.shiprocket || awbErr.message || String(awbErr);

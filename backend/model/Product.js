@@ -14,6 +14,69 @@ const productSchema = new mongoose.Schema(
       trim: true,
     },
 
+    ingredients: {
+      type: String,
+      trim: true,
+    },
+
+    keyUses: {
+      type: String,
+      trim: true,
+    },
+
+    safetyInformation: {
+      type: String,
+      trim: true,
+    },
+
+    descriptionTextColor: {
+      type: String,
+      trim: true,
+      default: "#0f172a",
+    },
+
+    descriptionBgColor: {
+      type: String,
+      trim: true,
+      default: "#ffffff",
+    },
+
+    ingredientsTextColor: {
+      type: String,
+      trim: true,
+      default: "#0f172a",
+    },
+
+    ingredientsBgColor: {
+      type: String,
+      trim: true,
+      default: "#ffffff",
+    },
+
+    keyUsesTextColor: {
+      type: String,
+      trim: true,
+      default: "#0f172a",
+    },
+
+    keyUsesBgColor: {
+      type: String,
+      trim: true,
+      default: "#ffffff",
+    },
+
+    safetyTextColor: {
+      type: String,
+      trim: true,
+      default: "#0f172a",
+    },
+
+    safetyBgColor: {
+      type: String,
+      trim: true,
+      default: "#ffffff",
+    },
+
     manufacturer: {
       type: String,
       trim: true,

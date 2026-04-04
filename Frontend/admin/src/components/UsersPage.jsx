@@ -10,20 +10,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Pencil, Trash2, Eye } from "lucide-react";
+import { ShieldBan, ShieldCheck, Trash2 } from "lucide-react";
 import { useContextApi } from "../hooks/useContextApi";
-import { Button } from "@/components/ui/button";
 
 const UsersPage = () => {
-  const { getAllUsers, deleteUser } = useContextApi();
+  const { getAllUsers, deleteUser, blockUser } = useContextApi();
   const [userData, setUserData] = useState([]);
+  const [updatingId, setUpdatingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   // ✅ Fetch all users
   useEffect(() => {
     const fetchUsers = async () => {
       try {
         const res = await getAllUsers();
-        setUserData(res.data || []); // Adjust to match your API structure
+        setUserData(res.users || []);
       } catch (error) {
         console.error("Error fetching users:", error);
       }
@@ -35,10 +36,32 @@ const UsersPage = () => {
   const handleDelete = async (id) => {
     if (!confirm("Are you sure you want to delete this user?")) return;
     try {
+      setDeletingId(id);
       await deleteUser(id);
       setUserData((prev) => prev.filter((user) => user._id !== id));
     } catch (error) {
       console.error("Error deleting user:", error);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleToggleBlock = async (id, nextBlocked) => {
+    try {
+      let reason = "";
+      if (nextBlocked) {
+        reason = window.prompt("Enter reason for blocking this user:", "") || "";
+        if (!String(reason).trim()) return;
+      }
+      setUpdatingId(id);
+      await blockUser(id, nextBlocked, reason);
+      setUserData((prev) => prev.map((user) => (
+        user._id === id ? { ...user, isBlocked: nextBlocked, blockReason: nextBlocked ? String(reason).trim() : "" } : user
+      )));
+    } catch (error) {
+      console.error("Error blocking/unblocking user:", error);
+    } finally {
+      setUpdatingId(null);
     }
   };
 
@@ -64,9 +87,8 @@ const UsersPage = () => {
             <TableHead>Name</TableHead>
             <TableHead>Email</TableHead>
             <TableHead>Phone</TableHead>
-            <TableHead className="text-center">View</TableHead>
-            <TableHead className="text-center">Edit</TableHead>
-            <TableHead className="text-center">Delete</TableHead>
+            <TableHead className="text-center">Status</TableHead>
+            <TableHead className="text-center">Actions</TableHead>
           </TableRow>
         </TableHeader>
 
@@ -99,36 +121,48 @@ const UsersPage = () => {
                 <TableCell>{user.email}</TableCell>
 
                 {/* Phone */}
-                <TableCell>{user.mobile || "—"}</TableCell>
+                <TableCell>{user.phone || user.mobile || "—"}</TableCell>
 
-                {/* View */}
+                {/* Status */}
                 <TableCell className="text-center">
-                  <button className="rounded-md p-2 hover:bg-green-100 transition">
-                    <Eye className="h-5 w-5 text-green-600" />
-                  </button>
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                    user.isBlocked ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
+                  }`}>
+                    {user.isBlocked ? "Blocked" : "Active"}
+                  </span>
                 </TableCell>
 
-                {/* Edit */}
                 <TableCell className="text-center">
-                  <button className="rounded-md p-2 hover:bg-blue-100 transition">
-                    <Pencil className="h-5 w-5 text-blue-600" />
-                  </button>
-                </TableCell>
-
-                {/* Delete */}
-                <TableCell className="text-center">
-                  <button
-                    onClick={() => handleDelete(user._id)}
-                    className="rounded-md p-2 hover:bg-red-100 transition"
-                  >
-                    <Trash2 className="h-5 w-5 text-red-600" />
-                  </button>
+                  <div className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 p-1">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleBlock(user._id, !user.isBlocked)}
+                      disabled={updatingId === user._id}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border disabled:opacity-50 ${
+                        user.isBlocked
+                          ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                          : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
+                      }`}
+                    >
+                      {user.isBlocked ? <ShieldCheck className="h-4 w-4" /> : <ShieldBan className="h-4 w-4" />}
+                      {user.isBlocked ? "Unblock" : "Block"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(user._id)}
+                      disabled={deletingId === user._id}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-900 text-white hover:bg-black disabled:opacity-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))
           ) : (
             <TableRow>
-              <TableCell colSpan={8} className="text-center py-6 text-gray-500">
+              <TableCell colSpan={7} className="text-center py-6 text-gray-500">
                 No users found.
               </TableCell>
             </TableRow>

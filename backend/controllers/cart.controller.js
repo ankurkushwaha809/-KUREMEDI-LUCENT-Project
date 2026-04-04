@@ -31,7 +31,7 @@ export const addToCart = async (req, res) => {
       if (qty > product.stockQuantity) {
         return res.status(400).json({
           success: false,
-          message: `Only ${product.stockQuantity} items in stock. Cannot add ${qty} items.`,
+          message: `Only ${product.stockQuantity} stock quantity are present.`,
         });
       }
       cart = await Cart.create({
@@ -48,7 +48,7 @@ export const addToCart = async (req, res) => {
         if (nextQty > product.stockQuantity) {
           return res.status(400).json({
             success: false,
-            message: `Only ${product.stockQuantity} items in stock. You already have ${cart.items[itemIndex].quantity} in cart.`,
+            message: `Only ${product.stockQuantity} stock quantity are present.`,
           });
         }
         cart.items[itemIndex].quantity = nextQty;
@@ -56,7 +56,7 @@ export const addToCart = async (req, res) => {
         if (qty > product.stockQuantity) {
           return res.status(400).json({
             success: false,
-            message: `Only ${product.stockQuantity} items in stock. Cannot add ${qty} items.`,
+            message: `Only ${product.stockQuantity} stock quantity are present.`,
           });
         }
         cart.items.push({ product: productId, quantity: qty });
@@ -197,7 +197,7 @@ export const updateCartQty = async (req, res) => {
 
     if (qty > product.stockQuantity) {
       return res.status(400).json({
-        message: `Only ${product.stockQuantity} items in stock. Cannot update to ${qty} items.`,
+        message: `Only ${product.stockQuantity} stock quantity are present.`,
       });
     }
 

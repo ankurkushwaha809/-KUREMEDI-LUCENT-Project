@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import axios from "axios";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ShieldBan, ShieldCheck, Trash2 } from "lucide-react";
 import { useContextApi } from "../hooks/useContextApi";
 
 
@@ -13,10 +13,11 @@ const UPLOAD_BASE = rawBase.replace(/\/api\/?$/, "") || "https://api.kuremedi.co
 const fileUrl = (file) =>
   file ? `${UPLOAD_BASE}/uploads/${String(file).replace(/^\/+/, "").replace(/\\/g, "/")}` : null;
 
-const updateKYCStatus = async (userId, status) => {
+const updateKYCStatus = async (userId, status, rejectionReason = "") => {
   try {
     const response = await axios.put(`${API_BASE}/auth/kyc-status/${userId}`, {
       status,
+      rejectionReason,
     }, { headers: { Authorization: `Bearer ${localStorage.getItem("adminToken")}` } });
     console.log("✅ KYC status updated:", response.data);
     return response.data;
@@ -29,15 +30,19 @@ const updateKYCStatus = async (userId, status) => {
 /* ================= MAIN COMPONENT ================= */
 
 export default function AllRetailer() {
-  const { getAllUsers, reprocessReferralReward } = useContextApi();
+  const { getAllUsers, reprocessReferralReward, deleteUser, blockUser, getDeletedUsersHistory } = useContextApi();
   const [reprocessing, setReprocessing] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [deleteHistory, setDeleteHistory] = useState([]);
 
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
+  const [accountFilter, setAccountFilter] = useState("All");
 
   const [selectedRetailer, setSelectedRetailer] = useState(null);
   const [updatedStatus, setUpdatedStatus] = useState("");
+  const [rejectionReason, setRejectionReason] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -47,13 +52,17 @@ export default function AllRetailer() {
     const fetchData = async () => {
       try {
         const res = await getAllUsers();
-        setUsers(res?.users || res || []);
+        const allUsers = res?.users || res || [];
+        const retailersOnly = allUsers.filter((u) => !u.role || u.role === "user");
+        setUsers(retailersOnly);
+        const historyRes = await getDeletedUsersHistory(20);
+        setDeleteHistory(historyRes?.history || []);
       } catch (err) {
         console.log("Error:", err);
       }
     };
     fetchData();
-  }, [getAllUsers]);
+  }, [getAllUsers, getDeletedUsersHistory]);
 
   useEffect(() => () => { }, []);
 
@@ -64,13 +73,19 @@ export default function AllRetailer() {
       const email = r?.email || "";
       const phone = r?.phone || "";
       const matchSearch = email.toLowerCase().includes(search.toLowerCase()) || phone.includes(search);
-      if (filter === "All") return matchSearch;
-      return matchSearch && r.kyc === filter;
+      const matchKyc = filter === "All" ? true : r.kyc === filter;
+      const matchAccount =
+        accountFilter === "All"
+          ? true
+          : accountFilter === "Blocked"
+            ? !!r.isBlocked
+            : !r.isBlocked;
+      return matchSearch && matchKyc && matchAccount;
     }),
-    [users, search, filter]
+    [users, search, filter, accountFilter]
   );
 
-  useEffect(() => setCurrentPage(1), [search, filter]);
+  useEffect(() => setCurrentPage(1), [search, filter, accountFilter]);
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
   const paginatedRetailers = useMemo(() => {
@@ -86,13 +101,17 @@ export default function AllRetailer() {
   /* ================= UPDATE STATUS ================= */
   const handleSubmit = async () => {
     try {
+      if (updatedStatus === "REJECTED" && !String(rejectionReason || "").trim()) {
+        alert("Please add a reason before rejecting KYC.");
+        return;
+      }
       // 🔥 Call backend API
-      await updateKYCStatus(selectedRetailer._id, updatedStatus);
+      await updateKYCStatus(selectedRetailer._id, updatedStatus, rejectionReason);
 
       // 🔄 Update UI after success
       const updatedUsers = users.map((u) =>
         u._id === selectedRetailer._id
-          ? { ...u, kyc: updatedStatus }
+          ? { ...u, kyc: updatedStatus, kycRejectionReason: updatedStatus === "REJECTED" ? String(rejectionReason || "").trim() : "" }
           : u
       );
 
@@ -101,6 +120,43 @@ export default function AllRetailer() {
       alert("✅ KYC Status Updated Successfully!");
     } catch (error) {
       alert("❌ Failed to update KYC status", error);
+    }
+  };
+
+  const handleToggleBlock = async (userId, isBlocked) => {
+    try {
+      let reason = "";
+      if (isBlocked) {
+        reason = window.prompt("Enter reason for blocking this user:", "") || "";
+        if (!String(reason).trim()) {
+          alert("Blocking reason is required.");
+          return;
+        }
+      }
+      setActionLoadingId(userId);
+      await blockUser(userId, isBlocked, reason);
+      setUsers((prev) => prev.map((u) => (u._id === userId ? { ...u, isBlocked, blockReason: isBlocked ? String(reason).trim() : "" } : u)));
+      setSelectedRetailer((prev) => (prev && prev._id === userId ? { ...prev, isBlocked, blockReason: isBlocked ? String(reason).trim() : "" } : prev));
+    } catch (error) {
+      alert(error?.response?.data?.message || "Failed to update account status");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleDeleteRetailer = async (userId) => {
+    if (!window.confirm("Delete this retailer permanently?")) return;
+    try {
+      setActionLoadingId(userId);
+      await deleteUser(userId);
+      setUsers((prev) => prev.filter((u) => u._id !== userId));
+      if (selectedRetailer?._id === userId) setSelectedRetailer(null);
+      const historyRes = await getDeletedUsersHistory(20);
+      setDeleteHistory(historyRes?.history || []);
+    } catch (error) {
+      alert(error?.response?.data?.message || "Failed to delete retailer");
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -143,6 +199,21 @@ export default function AllRetailer() {
         ))}
       </div>
 
+      <div className="flex flex-wrap gap-2 mb-5">
+        {["All", "Active", "Blocked"].map((item) => (
+          <button
+            key={item}
+            onClick={() => setAccountFilter(item)}
+            className={`px-4 py-1.5 rounded-full text-sm ${accountFilter === item
+              ? "bg-slate-900 text-white"
+              : "bg-white border"
+              }`}
+          >
+            {item}
+          </button>
+        ))}
+      </div>
+
       {/* Table */}
       <div className="bg-white rounded-xl shadow-md overflow-x-auto">
         <table className="w-full text-sm min-w-[800px] border-collapse">
@@ -153,6 +224,7 @@ export default function AllRetailer() {
               <th className="p-3 text-left">Email</th>
               <th className="p-3 text-left">Phone</th>
               <th className="p-3 text-left">KYC</th>
+              <th className="p-3 text-left">Account</th>
               <th className="p-3 text-left">Referral</th>
               <th className="p-3 text-center">Action</th>
             </tr>
@@ -161,7 +233,7 @@ export default function AllRetailer() {
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan="7" className="p-5 text-center text-gray-500">No retailers found</td>
+                <td colSpan="8" className="p-5 text-center text-gray-500">No retailers found</td>
               </tr>
             )}
             {paginatedRetailers.map((r, idx) => (
@@ -176,6 +248,11 @@ export default function AllRetailer() {
                   <StatusBadge status={r.kyc} />
                 </td>
                 <td className="p-3">
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${r.isBlocked ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}>
+                    {r.isBlocked ? "Blocked" : "Active"}
+                  </span>
+                </td>
+                <td className="p-3">
                   {r.referredBy ? (
                     r.referralBonusCredited ? (
                       <span className="text-green-600 text-xs font-medium">Credited</span>
@@ -187,15 +264,38 @@ export default function AllRetailer() {
                   )}
                 </td>
                 <td className="p-3 text-center">
-                  <button
-                    onClick={() => {
-                      setSelectedRetailer(r);
-                      setUpdatedStatus(r.kyc);
-                    }}
-                    className="px-4 py-1.5 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
-                  >
-                    View
-                  </button>
+                  <div className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 p-1">
+                    <button
+                      onClick={() => {
+                        setSelectedRetailer(r);
+                        setUpdatedStatus(r.kyc);
+                        setRejectionReason(r.kycRejectionReason || "");
+                      }}
+                      className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+                    >
+                      View
+                    </button>
+                    <button
+                      onClick={() => handleToggleBlock(r._id, !r.isBlocked)}
+                      disabled={actionLoadingId === r._id}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border disabled:opacity-50 ${
+                        r.isBlocked
+                          ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                          : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
+                      }`}
+                    >
+                      {r.isBlocked ? <ShieldCheck size={14} /> : <ShieldBan size={14} />}
+                      {r.isBlocked ? "Unblock" : "Block"}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteRetailer(r._id)}
+                      disabled={actionLoadingId === r._id}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-black disabled:opacity-50"
+                    >
+                      <Trash2 size={14} />
+                      Delete
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -230,6 +330,43 @@ export default function AllRetailer() {
           </div>
         </div>
       )}
+
+      {/* Deleted users history */}
+      <div className="mt-8 bg-white rounded-xl shadow-md overflow-x-auto">
+        <div className="p-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-800">Deleted User History</h2>
+          <p className="text-gray-500 text-sm mt-0.5">Latest {deleteHistory.length} deleted users</p>
+        </div>
+        <table className="w-full text-sm min-w-[760px] border-collapse">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="p-3 text-left">Name</th>
+              <th className="p-3 text-left">Email</th>
+              <th className="p-3 text-left">Phone</th>
+              <th className="p-3 text-left">Role</th>
+              <th className="p-3 text-left">Deleted By</th>
+              <th className="p-3 text-left">Deleted At</th>
+            </tr>
+          </thead>
+          <tbody>
+            {deleteHistory.length === 0 && (
+              <tr>
+                <td colSpan="6" className="p-5 text-center text-gray-500">No delete history found</td>
+              </tr>
+            )}
+            {deleteHistory.map((item) => (
+              <tr key={item._id} className="border-t border-gray-200">
+                <td className="p-3">{item.name || "—"}</td>
+                <td className="p-3">{item.email || "—"}</td>
+                <td className="p-3">{item.phone || "—"}</td>
+                <td className="p-3">{item.role || "—"}</td>
+                <td className="p-3">{item.deletedByEmail || "—"}</td>
+                <td className="p-3">{item.deletedAt ? new Date(item.deletedAt).toLocaleString("en-IN") : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {/* ================= MODAL ================= */}
 
@@ -307,6 +444,25 @@ export default function AllRetailer() {
                 <option value="REJECTED">REJECTED</option>
                 <option value="BLANK">BLANK</option>
               </select>
+
+              {updatedStatus === "REJECTED" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Rejection Reason *</label>
+                  <textarea
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    rows={3}
+                    placeholder="Type why KYC was rejected"
+                    className="w-full border rounded px-3 py-2"
+                  />
+                </div>
+              )}
+
+              {selectedRetailer.isBlocked && (
+                <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  <b>Block Reason:</b> {selectedRetailer.blockReason || "No reason provided"}
+                </div>
+              )}
             </div>
 
             {/* Footer */}

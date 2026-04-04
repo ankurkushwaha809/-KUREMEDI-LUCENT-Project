@@ -17,6 +17,7 @@ export const ProductCard = ({
   badgeText = "",
 }) => {
   const outOfStock = (product.stockQuantity ?? 1) <= 0;
+  const lowStock = Number(product.stockQuantity ?? 0) > 0 && Number(product.stockQuantity ?? 0) <= 20;
 
   return (
     <div className="relative border border-gray-100 rounded-2xl p-4 bg-white hover:shadow-lg transition-shadow h-full flex flex-col">
@@ -66,6 +67,10 @@ export const ProductCard = ({
         <h3 className="text-sm font-semibold text-gray-700 line-clamp-2 min-h-10">
           {product.productName || product.name}
         </h3>
+
+        {lowStock && (
+          <p className="text-[11px] font-semibold text-amber-700">Only {product.stockQuantity} left</p>
+        )}
 
         {product.description && (
           <p className="text-xs text-gray-500 line-clamp-1">

@@ -129,6 +129,28 @@ export default function OrdersPage() {
     setTrackingData(null);
   };
 
+  const buildTrackUrl = (awb, trackingUrl) => {
+    if (!awb) return trackingUrl || 'https://shiprocket.co/tracking';
+    const safe = `https://shiprocket.co/tracking/${encodeURIComponent(awb)}`;
+    if (!trackingUrl) return safe;
+    if (trackingUrl.includes('track.shiprocket.in')) return safe;
+    if (trackingUrl.includes('shiprocket.in/shipment-tracking')) return safe;
+    return trackingUrl;
+  };
+
+  const handleAwbClick = async (e, awb, trackingUrl) => {
+    e.preventDefault();
+    const finalUrl = buildTrackUrl(awb, trackingUrl);
+    try {
+      if (navigator?.clipboard?.writeText && awb) {
+        await navigator.clipboard.writeText(String(awb));
+      }
+    } catch {
+      // Continue with redirect even if clipboard permission is blocked.
+    }
+    window.open(finalUrl, '_blank', 'noopener,noreferrer');
+  };
+
   if (!token) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
@@ -187,6 +209,7 @@ export default function OrdersPage() {
             const status = (item.status || 'PLACED').toUpperCase();
             const hasTracking = !!(item.trackingUrl || item.shiprocketAwb);
             const isDispatched = status === 'DISPATCHED' || status === 'DELIVERED';
+            const trackingLink = item.trackingUrl || (item.shiprocketAwb ? `https://shiprocket.co/tracking/${encodeURIComponent(item.shiprocketAwb)}` : null);
 
             return (
               <div
@@ -206,6 +229,21 @@ export default function OrdersPage() {
                 </p>
 
                 <OrderStatusTimeline status={item.status} />
+
+                {item.shiprocketAwb && trackingLink && (
+                  <div className="mt-3 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2">
+                    <p className="text-[11px] text-teal-700 font-medium">Tracking ID</p>
+                    <a
+                      href={trackingLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => handleAwbClick(e, item.shiprocketAwb, trackingLink)}
+                      className="text-sm font-semibold text-teal-800 hover:text-teal-900 underline underline-offset-2 break-all"
+                    >
+                      {item.shiprocketAwb}
+                    </a>
+                  </div>
+                )}
 
                 {isDispatched && hasTracking && (
                   <button
@@ -279,7 +317,23 @@ export default function OrdersPage() {
                   ))}
                 </div>
               ) : trackingData?.tracking ? (
-                <p className="text-gray-500 py-4">No scan updates yet. Status will appear here soon.</p>
+                <div className="py-2">
+                  {trackingData?.order?.trackingNumber && trackingData?.order?.trackingUrl ? (
+                    <div className="mb-3 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2">
+                      <p className="text-[11px] text-teal-700 font-medium">Tracking ID</p>
+                      <a
+                        href={trackingData.order.trackingUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => handleAwbClick(e, trackingData.order.trackingNumber, trackingData.order.trackingUrl)}
+                        className="text-sm font-semibold text-teal-800 hover:text-teal-900 underline underline-offset-2 break-all"
+                      >
+                        {trackingData.order.trackingNumber}
+                      </a>
+                    </div>
+                  ) : null}
+                  <p className="text-gray-500 py-2">No scan updates yet. Status will appear here soon.</p>
+                </div>
               ) : (
                 <p className="text-gray-500 py-4">Tracking details will appear once available.</p>
               )}

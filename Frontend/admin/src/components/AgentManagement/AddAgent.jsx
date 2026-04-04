@@ -10,6 +10,7 @@ export default function AddAgent() {
     email: "",
     phone: "",
     territory: "",
+    address: "",
     aadharNumber: "",
     panNumber: "",
     bankName: "",
@@ -38,6 +39,7 @@ export default function AddAgent() {
         email: "",
         phone: "",
         territory: "",
+        address: "",
         aadharNumber: "",
         panNumber: "",
         bankName: "",
@@ -115,6 +117,18 @@ export default function AddAgent() {
               placeholder="Region / area"
             />
           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+          <textarea
+            name="address"
+            value={form.address}
+            onChange={handleChange}
+            rows="3"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black"
+            placeholder="Office or mailing address"
+          />
         </div>
 
         <div className="border-t pt-4 mt-4">

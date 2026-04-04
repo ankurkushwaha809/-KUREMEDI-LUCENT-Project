@@ -122,7 +122,7 @@ export default function SignupPage() {
             }
             if (data?.token && data?.user) {
                 login(data.token, data.user);
-                router.replace(data.user?.kyc !== 'APPROVED' ? '/kyc' : '/');
+                router.replace('/kyc');
                 router.refresh();
                 return;
             }
@@ -166,7 +166,7 @@ export default function SignupPage() {
             if (data?.token && data?.user) {
                 login(data.token, data.user);
                 showToast('Account created successfully', 'success');
-                router.replace(data.user?.kyc !== 'APPROVED' ? '/kyc' : '/');
+                router.replace('/kyc');
                 router.refresh();
                 return;
             }

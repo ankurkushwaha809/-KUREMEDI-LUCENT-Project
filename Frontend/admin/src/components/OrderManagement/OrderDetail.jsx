@@ -120,6 +120,45 @@ const OrderDetail = () => {
         }
     };
 
+    const handleGenerateAwb = async () => {
+        if (!selectedOrderId || !updateOrderStatus || !order.shiprocketShipmentId) return;
+        setUpdating(true);
+        try {
+            // Clear old AWB first to allow fresh assignment when a wrong AWB was saved earlier.
+            if (order.shiprocketAwb) {
+                await updateOrderStatus(selectedOrderId, "shiprocketAwb", null);
+            }
+            // Re-send DISPATCHED to trigger AWB generation on backend when missing.
+            await updateOrderStatus(selectedOrderId, "status", "DISPATCHED");
+            const res = await getOrderById(selectedOrderId);
+            const orderData = res?.data;
+            if (orderData) {
+                const addr = orderData.address || orderData.shippingAddress || {};
+                setOrder({
+                    ...orderData,
+                    address: {
+                        name: addr.shopName || orderData.user?.name || "-",
+                        phone: addr.phone || orderData.user?.phone || "-",
+                        addressLine1: addr.address || addr.addressLine1 || "-",
+                        addressLine2: addr.addressLine2 || "",
+                        city: addr.city || "",
+                        state: addr.state || "",
+                        pincode: addr.pincode || "",
+                    },
+                });
+            }
+            if (res?.data?.shiprocketAwb) {
+                toast.success("AWB generated successfully");
+            } else {
+                toast("AWB request sent. Refresh once more if not visible yet.");
+            }
+        } catch {
+            toast.error("Failed to generate AWB");
+        } finally {
+            setUpdating(false);
+        }
+    };
+
     const userName =
         order.user?.name ||
         order.user?.phone ||
@@ -182,17 +221,31 @@ const OrderDetail = () => {
                 </Card>
 
                 <Card title="Shipping / Shiprocket">
-                    <Info label="Shipment ID" value={order.shiprocketShipmentId || "—"} />
-                    <Info label="AWB" value={order.shiprocketAwb || "—"} />
-                    {order.trackingUrl ? (
+                    <Info label="Shipment ID (internal)" value={order.shiprocketShipmentId || "—"} />
+                    <Info label="Tracking Number (AWB)" value={order.shiprocketAwb || "—"} />
+                    {order.shiprocketAwb && order.trackingUrl ? (
                         <a
                             href={order.trackingUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center gap-1.5 text-sm text-blue-600 hover:underline mt-2"
                         >
-                            <ExternalLink size={14} /> Track shipment
+                            <ExternalLink size={14} /> Track on Shiprocket (AWB)
                         </a>
+                    ) : (
+                        <p className="text-xs text-amber-700 mt-2">
+                            Tracking link appears after AWB is generated. Shipment ID cannot be tracked on AWB search.
+                        </p>
+                    )}
+                    {order.shiprocketShipmentId ? (
+                        <button
+                            type="button"
+                            onClick={handleGenerateAwb}
+                            disabled={updating}
+                            className="mt-2 inline-flex items-center rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                        >
+                            {updating ? "Generating..." : order.shiprocketAwb ? "Regenerate AWB" : "Generate AWB"}
+                        </button>
                     ) : null}
                     {order.shiprocketLabelUrl ? (
                         <a

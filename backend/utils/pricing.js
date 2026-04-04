@@ -31,12 +31,13 @@ export const calculateUnitPricing = ({
   const normalizedDiscount = normalizePercent(discountPercent, 100);
   const normalizedGst = normalizePercent(gstPercent);
   const normalizedMode = normalizeGstMode(gstMode);
+  const effectiveGstPercent = normalizedMode === GST_MODE_INCLUDE ? normalizedGst : 0;
 
   const discountAmount = (baseSellingPrice * normalizedDiscount) / 100;
   const discountedSellingPrice = Math.max(0, baseSellingPrice - discountAmount);
 
   const taxableSellingPrice = discountedSellingPrice;
-  const gstAmount = normalizedGst > 0 ? (baseSellingPrice * normalizedGst) / 100 : 0;
+  const gstAmount = effectiveGstPercent > 0 ? (baseSellingPrice * effectiveGstPercent) / 100 : 0;
   const finalSellingPrice = discountedSellingPrice + gstAmount;
 
   return {
@@ -46,7 +47,7 @@ export const calculateUnitPricing = ({
     discountedSellingPrice: round2(discountedSellingPrice),
     taxableSellingPrice: round2(taxableSellingPrice),
     gstMode: normalizedMode,
-    gstPercent: round2(normalizedGst),
+    gstPercent: round2(effectiveGstPercent),
     gstAmount: round2(gstAmount),
     finalSellingPrice: round2(finalSellingPrice),
   };

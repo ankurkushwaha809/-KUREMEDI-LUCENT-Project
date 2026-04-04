@@ -19,7 +19,10 @@ import { useContextApi } from "../hooks/useContextApi";
 import AddBrandField from "./AddBrandField";
 import AddBrand from "./AddBrand";
 
-const IMAGE_BASE_URL = "https://api.kuremedi.com";
+let rawBase = import.meta.env.VITE_BASE_URL || "https://api.kuremedi.com/api";
+rawBase = rawBase.trim();
+rawBase = rawBase.replace("https:/.kuremedi.com", "https://api.kuremedi.com");
+const IMAGE_BASE_URL = rawBase.replace(/\/api\/?$/, "").replace(/\/$/, "");
 
 const getBrandLogoUrl = (item) => {
     const logo = item?.logo || item?.image;
@@ -163,7 +166,10 @@ export default function Brands() {
                                         src={getBrandLogoUrl(item)}
                                         alt={item.name}
                                         className="h-12 w-12 rounded-md border object-cover"
-                                        onError={(e) => { e.target.src = "https://via.placeholder.com/48?text=?"; }}
+                                        onError={(e) => {
+                                            e.currentTarget.onerror = null;
+                                            e.currentTarget.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48'><rect width='100%25' height='100%25' fill='%23f3f4f6'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%239ca3af' font-size='18'>?</text></svg>";
+                                        }}
                                     />
                                 ) : (
                                     <div className="h-12 w-12 rounded-md border bg-gray-100 flex items-center justify-center text-gray-400 text-xs">?</div>

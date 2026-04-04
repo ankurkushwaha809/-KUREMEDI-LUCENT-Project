@@ -13,6 +13,14 @@ export const protect = async (req, res, next) => {
       if (!req.user) {
         return res.status(401).json({ message: "User not found" });
       }
+      if (req.user.isBlocked) {
+        const reason = String(req.user.blockReason || "").trim();
+        return res.status(403).json({
+          message: reason
+            ? `Your account is blocked. Reason: ${reason}. Please contact support.`
+            : "Your account is blocked. Please contact support.",
+        });
+      }
       next();
     } catch (error) {
       return res.status(401).json({ message: "Not authorized, token failed" });

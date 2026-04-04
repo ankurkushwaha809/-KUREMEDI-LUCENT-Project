@@ -85,6 +85,8 @@ export const getMyOrders = () => apiGet("/orders/my");
 
 export const getOrderTracking = (orderId) => apiGet(`/orders/${orderId}/tracking`);
 
+export const getMarketingBanners = () => apiGet("/marketing/banners");
+
 export const createWalletRechargeOrder = (amount) =>
   apiPost("/wallet/recharge", { amount });
 

@@ -49,6 +49,28 @@ export default function OrderedProductsPage() {
         downloadOrderInvoicePdf(order, { buyer: user });
     }, [orders, user]);
 
+    const buildTrackUrl = useCallback((awb, trackingUrl) => {
+        if (!awb) return trackingUrl || 'https://shiprocket.co/tracking';
+        const safe = `https://shiprocket.co/tracking/${encodeURIComponent(awb)}`;
+        if (!trackingUrl) return safe;
+        if (trackingUrl.includes('track.shiprocket.in')) return safe;
+        if (trackingUrl.includes('shiprocket.in/shipment-tracking')) return safe;
+        return trackingUrl;
+    }, []);
+
+    const handleAwbClick = useCallback(async (e, awb, trackingUrl) => {
+        e.preventDefault();
+        const finalUrl = buildTrackUrl(awb, trackingUrl);
+        try {
+            if (navigator?.clipboard?.writeText && awb) {
+                await navigator.clipboard.writeText(String(awb));
+            }
+        } catch {
+            // Continue with redirect even if clipboard permission is blocked.
+        }
+        window.open(finalUrl, '_blank', 'noopener,noreferrer');
+    }, [buildTrackUrl]);
+
     return (
         <div className="min-h-screen bg-linear-to-b from-teal-50 via-white to-gray-50">
             <div className="container mx-auto px-4 py-8 max-w-6xl">
@@ -153,6 +175,29 @@ export default function OrderedProductsPage() {
                                             <p className="text-sm text-gray-600 mt-3">
                                                 Quantity: <span className="font-semibold text-gray-900">{item.quantity}</span> • Current stage: <span className="font-semibold text-gray-900">{item.progressLabel}</span>
                                             </p>
+                                            <div className="mt-2 text-sm">
+                                                {item.shiprocketAwb ? (
+                                                    <p className="text-gray-700">
+                                                        AWB ID:{' '}
+                                                        <a
+                                                            href={item.trackingUrl || `https://shiprocket.co/tracking/${encodeURIComponent(item.shiprocketAwb)}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            onClick={(e) => handleAwbClick(e, item.shiprocketAwb, item.trackingUrl)}
+                                                            className="font-semibold text-teal-700 hover:text-teal-800 underline underline-offset-2"
+                                                        >
+                                                            {item.shiprocketAwb}
+                                                        </a>
+                                                    </p>
+                                                ) : item.shiprocketShipmentId ? (
+                                                    <p className="text-gray-700">
+                                                        Shipment ID: <span className="font-semibold text-gray-900">{item.shiprocketShipmentId}</span>{' '}
+                                                        <span className="text-xs text-amber-700">(AWB pending)</span>
+                                                    </p>
+                                                ) : (
+                                                    <p className="text-gray-500">Tracking ID will appear after dispatch.</p>
+                                                )}
+                                            </div>
                                         </div>
 
                                         <div className="flex flex-col items-start md:items-end gap-3 shrink-0">

@@ -87,6 +87,13 @@ function KycPageInner() {
           </div>
         </div>
 
+        <div className="mx-auto max-w-xl px-4 pt-5">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm">
+            <p className="text-sm font-semibold text-amber-900">Documents submitted successfully</p>
+            <p className="mt-1 text-sm text-amber-800">Please wait for admin approval. Your KYC form is locked until the review is completed.</p>
+          </div>
+        </div>
+
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] flex items-center justify-center px-4">
           <div className="w-full max-w-lg rounded-2xl border border-amber-200 bg-white p-6 shadow-2xl">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100">

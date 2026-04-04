@@ -48,12 +48,14 @@ router.get(
       const total = agents.length;
       const active = agents.filter((a) => a.status === "Active").length;
       const pending = agents.filter((a) => a.status === "Pending").length;
+      const inactive = agents.filter((a) => a.status === "Inactive").length;
       const retailers = agents.reduce((s, a) => s + (a.retailersOnboarded || 0), 0);
       const payout = agents.reduce((s, a) => s + (a.totalPending || 0), 0);
       res.json({
         total,
         active,
         pending,
+        inactive,
         retailers,
         payout,
         agents,
@@ -625,6 +627,7 @@ router.post(
         email,
         phone,
         territory,
+        address,
         aadharNumber,
         panNumber,
         bankName,
@@ -700,6 +703,7 @@ router.post(
         email: normalizedEmail,
         phone: normalizedPhone,
         territory: territory ? String(territory).trim() : undefined,
+        address: address ? String(address).trim() : undefined,
         aadharNumber: aadharNumber ? String(aadharNumber).trim() : undefined,
         panNumber: panNumber ? String(panNumber).trim() : undefined,
         bankName: bankName ? String(bankName).trim() : undefined,
@@ -739,7 +743,7 @@ router.put(
       if (!agent) return res.status(404).json({ message: "Agent not found" });
 
       const fields = [
-        "name", "email", "phone", "territory", "status",
+        "name", "email", "phone", "territory", "address", "status",
         "aadharNumber", "panNumber", "drugLicenseNumber", "gstNumber",
         "bankName", "accountHolderName", "accountNumber", "ifscCode",
         "kycStatus", "retailersOnboarded", "totalEarned", "totalPending",
@@ -757,6 +761,32 @@ router.put(
 
       await agent.save();
       res.json(agent);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Server error" });
+    }
+  }
+);
+
+// ---------- Admin: delete agent ----------
+router.delete(
+  "/:id",
+  protect,
+  authorizeRoles("admin"),
+  async (req, res) => {
+    try {
+      const agent = await Agent.findById(req.params.id);
+      if (!agent) return res.status(404).json({ message: "Agent not found" });
+
+      if (agent.user) {
+        const linkedUser = await User.findById(agent.user);
+        if (linkedUser && linkedUser.role === "agent") {
+          await User.deleteOne({ _id: linkedUser._id });
+        }
+      }
+
+      await Agent.deleteOne({ _id: agent._id });
+      res.json({ message: "Agent deleted successfully" });
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: "Server error" });

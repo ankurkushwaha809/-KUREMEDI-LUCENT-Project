@@ -2,7 +2,10 @@ import React, { useState, useEffect, useRef } from "react";
 import { X, Plus, Trash2 } from "lucide-react";
 import { useContextApi } from "../hooks/useContextApi";
 
-const IMAGE_BASE_URL = "https://api.kuremedi.com";
+let rawBase = import.meta.env.VITE_BASE_URL || "https://api.kuremedi.com/api";
+rawBase = rawBase.trim();
+rawBase = rawBase.replace("https:/.kuremedi.com", "https://api.kuremedi.com");
+const IMAGE_BASE_URL = rawBase.replace(/\/api\/?$/, "").replace(/\/$/, "");
 
 const getProductImageUrl = (path) => {
     if (!path) return "";
@@ -32,6 +35,10 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
         mrp: "",
         sellingPrice: "",
         composition: "",
+        ingredients: "",
+        keyUses: "",
+        safetyInformation: "",
+        // ...existing code...
         packing: "",
         discount: "",
         gst: "",
@@ -76,10 +83,16 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
                         mrp: item.mrp || "",
                         sellingPrice: item.sellingPrice || "",
                         composition: item.composition || "",
+                        ingredients: item.ingredients || "",
+                        keyUses: item.keyUses || "",
+                        safetyInformation: item.safetyInformation || "",
+                        // ...existing code...
                         packing: item.packing || "",
                         discount: item.discountPercent ?? item.discount ?? "",
-                        gst: item.gstPercent ?? item.gst ?? "",
-                        gstMode: item.gstMode || "include",
+                        gst: (item.gstMode || (Number(item.gstPercent ?? item.gst ?? 0) > 0 ? "include" : "exclude")) === "include"
+                            ? (item.gstPercent ?? item.gst ?? "")
+                            : 0,
+                        gstMode: item.gstMode || (Number(item.gstPercent ?? item.gst ?? 0) > 0 ? "include" : "exclude"),
                         category: item.category?._id || item.category || "",
                         brand: item.brand?._id || item.brand || "",
                         manufacturer: item.manufacturer || "",
@@ -101,6 +114,10 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
                         mrp: "",
                         sellingPrice: "",
                         composition: "",
+                        ingredients: "",
+                        keyUses: "",
+                        safetyInformation: "",
+                        // ...existing code...
                         packing: "",
                         discount: "",
                         gst: "",
@@ -135,9 +152,11 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
         const nextValue = type === "checkbox" ? checked : value;
         setFormData((prev) => {
             if (name === "gstMode") {
+                const isExclude = nextValue === "exclude";
                 return {
                     ...prev,
                     gstMode: nextValue,
+                    gst: isExclude ? 0 : prev.gst,
                 };
             }
             if (name === "gst") {
@@ -187,6 +206,10 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
         fd.append("mrp", String(formData.mrp || 0));
         fd.append("sellingPrice", String(formData.sellingPrice || 0));
         fd.append("composition", formData.composition || "");
+        fd.append("ingredients", formData.ingredients || "");
+        fd.append("keyUses", formData.keyUses || "");
+        fd.append("safetyInformation", formData.safetyInformation || "");
+        // ...existing code...
         fd.append("packing", formData.packing || "");
         fd.append("discountPercent", String(formData.discount || 0));
         fd.append("gstPercent", String(formData.gstMode === "include" ? (formData.gst || 0) : 0));
@@ -285,29 +308,45 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
                         <div className="space-y-2">
                             <label className="block text-sm font-medium text-gray-700">Product Images (max 6)</label>
                             <div className="grid grid-cols-3 gap-2 mb-2">
-                                {allPreviews.map((src, index) => (
-                                    <div key={index} className="relative group aspect-square border rounded-lg overflow-hidden bg-gray-100">
-                                        <img
-                                            src={src}
-                                            alt="Preview"
-                                            className="w-full h-full object-cover"
-                                            onError={(e) => { e.target.src = "https://via.placeholder.com/150?text=Load+Error"; }}
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => removeImage(index)}
-                                            className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
-                                    </div>
-                                ))}
-                                {allPreviews.length < 6 && (
-                                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg aspect-square cursor-pointer hover:bg-gray-50 transition">
-                                        <Plus size={24} className="text-gray-400" />
-                                        <input type="file" multiple accept="image/*" onChange={handleImageUpload} className="hidden" />
-                                    </label>
-                                )}
+                                {Array.from({ length: 6 }).map((_, idx) => {
+                                    if (allPreviews[idx]) {
+                                        return (
+                                            <div key={idx} className="relative group aspect-square border rounded-lg overflow-hidden bg-gray-100">
+                                                <img
+                                                    src={allPreviews[idx]}
+                                                    alt="Preview"
+                                                    className="w-full h-full object-cover"
+                                                    onError={(e) => {
+                                                        e.target.onerror = null;
+                                                        e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150"><rect width="100%25" height="100%25" fill="%23f3f4f6"/><text x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" fill="%239ca3af" font-size="16">Image Error</text></svg>';
+                                                    }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeImage(idx)}
+                                                    className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+                                        );
+                                    } else if (allPreviews.length === idx) {
+                                        // Show upload button in the first empty slot
+                                        return (
+                                            <label key={idx} className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg aspect-square cursor-pointer hover:bg-gray-50 transition">
+                                                <Plus size={24} className="text-gray-400" />
+                                                <input type="file" multiple accept="image/*" onChange={handleImageUpload} className="hidden" />
+                                            </label>
+                                        );
+                                    } else {
+                                        // Show placeholder for other empty slots
+                                        return (
+                                            <div key={idx} className="aspect-square border rounded-lg bg-gray-100 flex items-center justify-center">
+                                                <span className="text-gray-200 text-3xl select-none">+</span>
+                                            </div>
+                                        );
+                                    }
+                                })}
                             </div>
                         </div>
 
@@ -318,6 +357,26 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
                             onChange={(value) => setFormData((prev) => ({ ...prev, composition: value }))}
                             placeholder="Write product composition. You can use bold, lists, and basic formatting."
                         />
+                        <RichTextField
+                            label="Ingredients"
+                            value={formData.ingredients}
+                            onChange={(value) => setFormData((prev) => ({ ...prev, ingredients: value }))}
+                            placeholder="Write ingredients. You can use bold, lists, and basic formatting."
+                        />
+                        <RichTextField
+                            label="Key Uses"
+                            value={formData.keyUses}
+                            onChange={(value) => setFormData((prev) => ({ ...prev, keyUses: value }))}
+                            placeholder="Write key uses. You can use bold, lists, and basic formatting."
+                        />
+                        <RichTextField
+                            label="Safety Information"
+                            value={formData.safetyInformation}
+                            onChange={(value) => setFormData((prev) => ({ ...prev, safetyInformation: value }))}
+                            placeholder="Write safety information. You can use bold, lists, and basic formatting."
+                        />
+
+                        {/* Section Styles removed */}
                         <InputField label="Packing" name="packing" value={formData.packing} onChange={handleChange} placeholder="e.g. 10 tabs, 1 pouch, Strip of 15" />
 
                         <div className="grid grid-cols-2 gap-4">
@@ -508,5 +567,21 @@ const RichTextField = ({ label, value, onChange, placeholder }) => {
         </div>
     );
 };
+
+const StylePair = ({ label, textColor, bgColor, onTextColor, onBgColor }) => (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+        <div className="sm:col-span-1">
+            <label className="block text-xs font-semibold text-gray-600 mb-1">{label}</label>
+        </div>
+        <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Text color</label>
+            <input type="color" value={textColor} onChange={(e) => onTextColor(e.target.value)} className="h-10 w-full rounded-lg border border-gray-300 bg-white p-1" />
+        </div>
+        <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Background</label>
+            <input type="color" value={bgColor} onChange={(e) => onBgColor(e.target.value)} className="h-10 w-full rounded-lg border border-gray-300 bg-white p-1" />
+        </div>
+    </div>
+);
 
 export default AddProductModal;

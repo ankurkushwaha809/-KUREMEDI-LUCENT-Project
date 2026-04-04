@@ -37,6 +37,7 @@ const agentSchema = new mongoose.Schema(
 
     // Territory & status
     territory: { type: String, trim: true },
+    address: { type: String, trim: true },
     status: {
       type: String,
       enum: ["Active", "Pending", "Inactive"],

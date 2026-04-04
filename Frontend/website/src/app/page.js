@@ -32,42 +32,36 @@ import {
   SkeletonProductRow,
 } from "@/components/Skeleton";
 
-const BANNERS = [
-  "/banners/medicine-banner-1.svg",
-  "/banners/medicine-banner-2.svg",
-  "/banners/medicine-banner-3.svg",
-];
-
-const QUICK_ACTIONS = [
+const FALLBACK_BANNERS = [
   {
-    title: "Cipla",
-    imageUrl: "https://www.cipla.com/sites/default/files/cipla-logo.png",
-    href: "/products",
+    image: "/banners/medicine-banner-1.svg",
+    redirectUrl: "",
+    ctaText: "Shop now",
+    title: "Trusted medicines, delivered fast",
+    subtitle: "Smart pricing for pharmacies and clinics",
+    textColor: "#ffffff",
+    subtitleColor: "#e2e8f0",
+    buttonColor: "#0f172a",
   },
   {
-    title: "Mankind",
-    imageUrl: "https://www.mankindpharma.com/wp-content/uploads/2024/12/favicon.png",
-    href: "/brands",
+    image: "/banners/medicine-banner-2.svg",
+    redirectUrl: "",
+    ctaText: "Shop now",
+    title: "Bulk health essentials in one place",
+    subtitle: "Top brands with reliable availability",
+    textColor: "#ffffff",
+    subtitleColor: "#e2e8f0",
+    buttonColor: "#0f172a",
   },
   {
-    title: "Sun Pharma",
-    imageUrl: "https://sunpharma.com/wp-content/uploads/2022/06/cropped-android-chrome-512x512-1-32x32.png",
-    href: "/search?q=tablets",
-  },
-  {
-    title: "Zydus",
-    imageUrl: "https://www.zyduslife.com/public/images/zydus-logo.png",
-    href: "/products",
-  },
-  {
-    title: "Torrent Pharma",
-    imageUrl: "https://www.torrentpharma.com/new-logo.svg",
-    href: "/products",
-  },
-  {
-    title: "Cadila",
-    imageUrl: "https://www.cadilapharma.com/ast/uploads/2019/05/footer-icn.svg",
-    href: "/refer-earn",
+    image: "/banners/medicine-banner-3.svg",
+    redirectUrl: "",
+    ctaText: "Shop now",
+    title: "Better stock, better margins",
+    subtitle: "Explore seasonal offers on daily movers",
+    textColor: "#ffffff",
+    subtitleColor: "#e2e8f0",
+    buttonColor: "#0f172a",
   },
 ];
 
@@ -77,6 +71,7 @@ const HomePage = () => {
     getCategories,
     getImageUrl,
     getBrands,
+    getMarketingBanners,
     getBrandImageUrl,
     getProducts,
     getProductImageUrl,
@@ -92,10 +87,11 @@ const HomePage = () => {
   const [categories, setCategories] = useState([]);
   const [brands, setBrands] = useState([]);
   const [products, setProducts] = useState([]);
+  const [bannerSlides, setBannerSlides] = useState(FALLBACK_BANNERS);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
-  const [isQuickActionsHovered, setIsQuickActionsHovered] = useState(false);
+  const [isBrandsHovered, setIsBrandsHovered] = useState(false);
 
   const bestSelling = useMemo(() => {
     return [...(products || [])].sort((a, b) => {
@@ -135,23 +131,35 @@ const HomePage = () => {
       .slice(0, 6);
   }, [products, searchText]);
 
+  const brandLoop = useMemo(() => {
+    if (!Array.isArray(brands) || brands.length === 0) return [];
+    return [...brands, ...brands];
+  }, [brands]);
+
   // Auto-slide Hero Banner
   useEffect(() => {
+    if (!bannerSlides.length) return;
     const t = setInterval(() => {
-      setBannerIndex((i) => (i + 1) % BANNERS.length);
+      setBannerIndex((i) => (i + 1) % bannerSlides.length);
     }, 4000);
     return () => clearInterval(t);
-  }, []);
+  }, [bannerSlides.length]);
+
+  useEffect(() => {
+    if (!bannerSlides.length) return;
+    setBannerIndex((prev) => (prev >= bannerSlides.length ? 0 : prev));
+  }, [bannerSlides.length]);
 
   // Fetch Data
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
       try {
-        const [catRes, brandRes, prodRes] = await Promise.all([
+        const [catRes, brandRes, prodRes, bannerRes] = await Promise.all([
           getCategories(),
           getBrands(),
           getProducts(),
+          getMarketingBanners(),
         ]);
         if (catRes?.success && Array.isArray(catRes.data)) setCategories(catRes.data);
         if (brandRes?.success && Array.isArray(brandRes.data)) setBrands(brandRes.data);
@@ -160,14 +168,35 @@ const HomePage = () => {
         } else if (Array.isArray(prodRes)) {
           setProducts(prodRes);
         }
+
+        const activeBanners = Array.isArray(bannerRes?.data)
+          ? bannerRes.data
+              .map((b) => {
+                const image = getImageUrl(b?.image);
+                if (!image) return null;
+                return {
+                  image,
+                  redirectUrl: String(b?.redirectUrl || "").trim(),
+                  ctaText: String(b?.ctaText || "Shop now").trim() || "Shop now",
+                  title: String(b?.title || "").trim(),
+                  subtitle: String(b?.subtitle || "").trim(),
+                  textColor: String(b?.textColor || "#ffffff").trim() || "#ffffff",
+                  subtitleColor: String(b?.subtitleColor || "#e2e8f0").trim() || "#e2e8f0",
+                  buttonColor: String(b?.buttonColor || "#0f172a").trim() || "#0f172a",
+                };
+              })
+              .filter(Boolean)
+          : [];
+        setBannerSlides(activeBanners.length ? activeBanners : FALLBACK_BANNERS);
       } catch (err) {
         console.error("Data load error", err);
+        setBannerSlides(FALLBACK_BANNERS);
       } finally {
         setLoading(false);
       }
     };
     loadData();
-  }, [getCategories, getBrands, getProducts]);
+  }, [getCategories, getBrands, getProducts, getMarketingBanners, getImageUrl]);
 
   if (loading) {
     return (
@@ -193,8 +222,6 @@ const HomePage = () => {
     router.push(`/search?q=${encodeURIComponent(q)}`);
   };
 
-  const quickActionLoop = [...QUICK_ACTIONS, ...QUICK_ACTIONS];
-
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,#ecfdf5_0%,#ffffff_42%,#eff6ff_100%)]">
       <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-10">
@@ -202,21 +229,63 @@ const HomePage = () => {
 
       {/* 2. HERO BANNER */}
       <section className="relative w-full h-44 md:h-80 rounded-3xl overflow-hidden shadow-[0_18px_50px_rgba(59,130,246,0.12)] ring-1 ring-sky-100">
-        {BANNERS.map((src, i) => (
-          <Image
-            key={i}
-            src={src}
-            alt={`Banner ${i + 1}`}
-            fill
-            priority={i === 0}
-            sizes="(max-width: 768px) 100vw, 1200px"
-            className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 ${bannerIndex === i ? "opacity-100 z-10" : "opacity-0 z-0"
-              }`}
-          />
-        ))}
-        <div className="pointer-events-none absolute inset-0 z-10 bg-linear-to-t from-slate-950/30 via-sky-950/10 to-transparent" />
+        {bannerSlides.map((slide, i) => {
+          const isActiveSlide = bannerIndex === i;
+          const hasRedirect = !!slide?.redirectUrl;
+          return (
+            <div
+              key={`${slide.image}-${i}`}
+              className={`absolute inset-0 transition-opacity duration-1000 ${isActiveSlide ? "opacity-100 z-10" : "opacity-0 z-0"}`}
+            >
+              <Image
+                src={slide.image}
+                alt={`Banner ${i + 1}`}
+                fill
+                unoptimized
+                priority={i === 0}
+                sizes="(max-width: 768px) 100vw, 1200px"
+                className="h-full w-full object-cover"
+              />
+
+              <div className="pointer-events-none absolute inset-0 z-10 bg-linear-to-r from-slate-950/60 via-slate-900/30 to-transparent" />
+              <div className="pointer-events-none absolute inset-x-0 top-0 z-20 p-4 md:p-8">
+                {slide.title ? (
+                  <p
+                    className="max-w-2xl text-xl font-black leading-tight md:text-4xl"
+                    style={{ color: slide.textColor || "#ffffff" }}
+                  >
+                    {slide.title}
+                  </p>
+                ) : null}
+                {slide.subtitle ? (
+                  <p
+                    className="mt-2 max-w-2xl text-sm font-medium md:text-base"
+                    style={{ color: slide.subtitleColor || "#e2e8f0" }}
+                  >
+                    {slide.subtitle}
+                  </p>
+                ) : null}
+              </div>
+
+              {hasRedirect ? (
+                <Link
+                  href={slide.redirectUrl}
+                  className="absolute inset-0 z-20 flex items-end p-4 md:p-6"
+                  aria-label={`Open banner ${i + 1}`}
+                >
+                  <span
+                    className="inline-flex items-center rounded-full px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-white shadow-lg transition hover:brightness-110 md:text-sm"
+                    style={{ backgroundColor: slide.buttonColor || "#0f172a" }}
+                  >
+                    {slide.ctaText || "Shop now"}
+                  </span>
+                </Link>
+              ) : null}
+            </div>
+          );
+        })}
         <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 z-20">
-          {BANNERS.map((_, i) => (
+          {bannerSlides.map((_, i) => (
             <button
               key={i}
               onClick={() => setBannerIndex(i)}
@@ -283,34 +352,41 @@ const HomePage = () => {
           ) : null}
         </div>
 
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-lg font-extrabold text-slate-900 md:text-2xl tracking-tight flex items-center gap-2">
+            <span className="inline-block w-2 h-2 rounded-full bg-linear-to-tr from-sky-400 to-emerald-400 mr-2"></span>
+            Top Brands
+          </h2>
+          <Link href="/brands" className="text-sky-700 bg-linear-to-r from-sky-100 to-emerald-50 px-4 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1 hover:bg-sky-200 transition-all shadow-sm border border-sky-100">
+            View All <ChevronRight className="w-4 h-4" />
+          </Link>
+        </div>
+
         <div
-          className="overflow-hidden"
-          onMouseEnter={() => setIsQuickActionsHovered(true)}
-          onMouseLeave={() => setIsQuickActionsHovered(false)}
+          className="overflow-hidden rounded-3xl border border-sky-100 bg-linear-to-r from-sky-50 via-white to-emerald-50 py-3 px-1 shadow-lg"
+          onMouseEnter={() => setIsBrandsHovered(true)}
+          onMouseLeave={() => setIsBrandsHovered(false)}
         >
           <div
-            className="flex w-max gap-3 py-1 marquee-track"
-            style={{ animationPlayState: isQuickActionsHovered ? "paused" : "running" }}
+            className="flex w-max gap-6 md:gap-8 py-1 marquee-track"
+            style={{ animationPlayState: isBrandsHovered ? "paused" : "running" }}
           >
-            {quickActionLoop.map((item, index) => {
-            return (
+            {brandLoop.map((brand, index) => (
               <Link
-                key={`${item.title}-${index}`}
-                href={item.href}
-                className="group min-w-40 shrink-0 rounded-[28px] border border-white/80 bg-white/90 p-4 text-center transition-all duration-300 hover:-translate-y-1 hover:border-sky-100 hover:shadow-[0_12px_30px_rgba(59,130,246,0.10)] md:min-w-44"
+                key={`${brand._id}-${index}`}
+                href={`/brands/${getBrandSlug(brand)}`}
+                className="group flex min-w-40 shrink-0 flex-col items-center rounded-2xl border border-white bg-white p-4 md:min-w-48 shadow transition-all duration-200 hover:scale-105 hover:shadow-xl hover:border-emerald-200"
+                style={{ boxShadow: '0 4px 18px 0 rgba(16, 185, 129, 0.07)' }}
               >
-                <div className="mx-auto flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-white ring-1 ring-slate-200 transition-transform group-hover:scale-105">
-                  <img
-                    src={item.imageUrl}
-                    alt={item.title}
-                    className="h-full w-full object-contain p-2.5"
-                    loading="lazy"
-                  />
+                <div className="relative mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-linear-to-tr from-sky-100 to-emerald-50 shadow-md ring-2 ring-sky-100 group-hover:ring-emerald-200 transition-all">
+                  <img src={getBrandImageUrl(brand?.logo)} alt={brand?.name} className="h-10 w-10 object-contain" />
+                  <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold shadow group-hover:bg-sky-100 group-hover:text-sky-700 transition-all border border-emerald-200">Trusted</span>
                 </div>
-                <p className="mt-3 text-sm font-semibold text-slate-800">{item.title}</p>
+                <span className="text-sm font-semibold text-slate-800 text-center truncate w-full">
+                  {brand.name}
+                </span>
               </Link>
-            );
-            })}
+            ))}
           </div>
         </div>
       </section>
@@ -334,26 +410,6 @@ const HomePage = () => {
               <span className="text-[10px] md:text-xs font-medium text-gray-600 truncate block px-1">
                 {cat?.name}
               </span>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      {/* 4. BRANDS */}
-      <section>
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-slate-800">Top Brands</h2>
-          <Link href="/brands" className="text-sky-700 bg-sky-50 px-4 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1 hover:bg-sky-100 transition-all">
-            View All <ChevronRight className="w-4 h-4" />
-          </Link>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {brands.map((brand) => (
-            <Link key={brand._id} href={`/brands/${getBrandSlug(brand)}`} className="flex flex-col items-center p-4 border border-slate-100 rounded-2xl bg-white hover:border-sky-100 hover:shadow-sm transition-all">
-              <div className="h-10 w-full flex items-center justify-center mb-2">
-                <img src={getBrandImageUrl(brand?.logo)} alt={brand?.name} className="max-h-full max-w-full object-contain" />
-              </div>
-              <span className="text-xs text-gray-500 font-medium">{brand.name}</span>
             </Link>
           ))}
         </div>
@@ -436,8 +492,8 @@ const HomePage = () => {
                   try {
                     await addToCart(product._id, product.minOrderQty || 1);
                     showToast("Added to cart");
-                  } catch {
-                    showToast("Could not add to cart.", "error");
+                  } catch (err) {
+                    showToast(err?.message || "Could not add to cart.", "error");
                   }
                 };
 
@@ -507,8 +563,8 @@ const ProductCarousel = ({
     try {
       await addToCart(product._id, product.minOrderQty || 1);
       showToast("Added to cart");
-    } catch {
-      showToast("Could not add to cart.", "error");
+    } catch (err) {
+      showToast(err?.message || "Could not add to cart.", "error");
     }
   };
 

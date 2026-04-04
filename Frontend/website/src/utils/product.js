@@ -43,6 +43,10 @@ export function normalizeProduct(p) {
     images: images.length > 0 ? images : [getImageUrl(firstImg || "")].filter(Boolean),
     unit: p.packSize || p.packing || "1 unit",
     description: p.composition,
+    ingredients: p.ingredients,
+    keyUses: p.keyUses,
+    safetyInformation: p.safetyInformation,
+    // ...existing code...
     categoryName,
     brandName,
     brand: brandName,

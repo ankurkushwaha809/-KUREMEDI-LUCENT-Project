@@ -516,6 +516,44 @@ export const ContextProvider = ({ children }) => {
     }
   };
 
+  const deleteUser = async (userId) => {
+    try {
+      const response = await axios.delete(`${BASE_URL}/auth/users/${userId}`, {
+        headers: getAuthHeaders(),
+      });
+      return response.data;
+    } catch (error) {
+      console.error(" Error deleting user:", error?.response?.data || error);
+      throw error;
+    }
+  };
+
+  const blockUser = async (userId, isBlocked, reason = "") => {
+    try {
+      const response = await axios.patch(
+        `${BASE_URL}/auth/users/${userId}/block`,
+        { isBlocked, reason },
+        { headers: { ...getAuthHeaders(), "Content-Type": "application/json" } }
+      );
+      return response.data;
+    } catch (error) {
+      console.error(" Error blocking/unblocking user:", error?.response?.data || error);
+      throw error;
+    }
+  };
+
+  const getDeletedUsersHistory = async (limit = 50) => {
+    try {
+      const response = await axios.get(`${BASE_URL}/auth/users/deleted-history?limit=${encodeURIComponent(limit)}`, {
+        headers: getAuthHeaders(),
+      });
+      return response.data;
+    } catch (error) {
+      console.error(" Error fetching deleted users history:", error?.response?.data || error);
+      throw error;
+    }
+  };
+
 
   const kycStatusUpdate = async (userId, status) => {
     try {
@@ -642,6 +680,7 @@ export const ContextProvider = ({ children }) => {
         total: data?.total ?? 0,
         active: data?.active ?? 0,
         pending: data?.pending ?? 0,
+        inactive: data?.inactive ?? 0,
         retailers: data?.retailers ?? 0,
         payout: data?.payout ?? 0,
       };
@@ -681,6 +720,16 @@ export const ContextProvider = ({ children }) => {
     }
   };
 
+  const deleteAgent = async (id) => {
+    try {
+      const response = await axios.delete(`${BASE_URL}/agents/${id}`, { headers: getAuthHeaders() });
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error deleting agent:", error.response?.data || error);
+      throw error;
+    }
+  };
+
   const updateAgentKycStatus = async (agentId, status) => {
     try {
       const response = await axios.put(
@@ -696,6 +745,89 @@ export const ContextProvider = ({ children }) => {
   };
 
   const getUploadBaseUrl = () => "https://api.kuremedi.com";
+
+  const getMarketingBanners = async () => {
+    try {
+      const response = await axios.get(`${BASE_URL}/marketing/admin/banners`, { headers: getAuthHeaders() });
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error fetching marketing banners:", error.response?.data || error);
+      throw error;
+    }
+  };
+
+  const createMarketingBanner = async ({
+    name,
+    image,
+    isActive = true,
+    redirectUrl = "",
+    ctaText = "Shop now",
+    title = "",
+    subtitle = "",
+    textColor = "#ffffff",
+    subtitleColor = "#e2e8f0",
+    buttonColor = "#0f172a",
+  }) => {
+    try {
+      const formData = new FormData();
+      formData.append("name", name);
+      formData.append("isActive", String(isActive));
+      formData.append("image", image);
+      formData.append("redirectUrl", redirectUrl);
+      formData.append("ctaText", ctaText);
+      formData.append("title", title);
+      formData.append("subtitle", subtitle);
+      formData.append("textColor", textColor);
+      formData.append("subtitleColor", subtitleColor);
+      formData.append("buttonColor", buttonColor);
+      const response = await axios.post(`${BASE_URL}/marketing/banners`, formData, {
+        headers: {
+          ...getAuthHeaders(),
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error creating marketing banner:", error.response?.data || error);
+      throw error;
+    }
+  };
+
+  const updateMarketingBanner = async (id, payload = {}) => {
+    try {
+      const formData = new FormData();
+      if (payload.name !== undefined) formData.append("name", payload.name);
+      if (payload.isActive !== undefined) formData.append("isActive", String(payload.isActive));
+      if (payload.image) formData.append("image", payload.image);
+      if (payload.redirectUrl !== undefined) formData.append("redirectUrl", payload.redirectUrl);
+      if (payload.ctaText !== undefined) formData.append("ctaText", payload.ctaText);
+      if (payload.title !== undefined) formData.append("title", payload.title);
+      if (payload.subtitle !== undefined) formData.append("subtitle", payload.subtitle);
+      if (payload.textColor !== undefined) formData.append("textColor", payload.textColor);
+      if (payload.subtitleColor !== undefined) formData.append("subtitleColor", payload.subtitleColor);
+      if (payload.buttonColor !== undefined) formData.append("buttonColor", payload.buttonColor);
+      const response = await axios.put(`${BASE_URL}/marketing/banners/${id}`, formData, {
+        headers: {
+          ...getAuthHeaders(),
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error updating marketing banner:", error.response?.data || error);
+      throw error;
+    }
+  };
+
+  const deleteMarketingBanner = async (id) => {
+    try {
+      const response = await axios.delete(`${BASE_URL}/marketing/banners/${id}`, { headers: getAuthHeaders() });
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error deleting marketing banner:", error.response?.data || error);
+      throw error;
+    }
+  };
 
   const getReferralsTracking = async () => {
     try {
@@ -828,9 +960,10 @@ export const ContextProvider = ({ children }) => {
         setSelectedOrderId,
         getOrderById,
         updateKYCStatus,
-        updateBlog, getAllUsers, kycStatusUpdate, updateUserKYCStatus,
+        updateBlog, getAllUsers, deleteUser, blockUser, getDeletedUsersHistory, kycStatusUpdate, updateUserKYCStatus,
         deleteBlog, fetchblogCategories, addblogCategory, updateblogCategory, deleteblogCategory, enquiries, addEnquiry, updateEnquiry, deleteEnquiry, fetchEnquiries, user, login, getallOrders, createProducts, createProductWithFormData, updateProductWithFormData, updateProducts, deleteProducts, bulkImportProducts, deletesubcategory, createsubcategory, updatesubcategory, updateOrderStatus, getAllEnquiries, logout, activeTab, setActiveTab, GetSubCategoryData, GetCategoryData, AddCategoryData, createCategoryWithFormData, updateCategoryWithFormData, uploadImage, UpdateCategoryData, DeleteCategory, getBrands, createBrand, createBrandWithFormData, updateBrand, updateBrandWithFormData, deleteBrand, getReferralAmount, setReferralAmount, getReferralRewards, setReferralRewards,
-        getAgents, getAgentById, createAgent, updateAgent, updateAgentKycStatus, getUploadBaseUrl, getReferralsTracking, reprocessReferralReward,
+        getAgents, getAgentById, createAgent, updateAgent, deleteAgent, updateAgentKycStatus, getUploadBaseUrl, getReferralsTracking, reprocessReferralReward,
+        getMarketingBanners, createMarketingBanner, updateMarketingBanner, deleteMarketingBanner,
         getSupportTickets, getSupportTicketById, replySupportTicket, updateSupportTicketStatus, addSupportCallNote, updateSupportTicketNotes, initiateSupportCall,
       }}
     >

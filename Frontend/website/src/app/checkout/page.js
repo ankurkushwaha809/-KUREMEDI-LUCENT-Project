@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   CheckCircle2,
   Wallet,
+  Trash2,
 } from "lucide-react";
 import { useAppContext } from "@/context/context";
 import * as api from "@/api";
@@ -34,6 +35,18 @@ const formatCurrency = (value) =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(Number(value) || 0);
+const formatPercent = (value) => {
+  const n = Number(value) || 0;
+  return Number.isInteger(n) ? `${n}%` : `${n.toFixed(2)}%`;
+};
+const getLineGstAmount = (item) => {
+  const qty = Number(item?.qty) || 0;
+  const unitGst = Number(item?.gstAmount);
+  if (Number.isFinite(unitGst)) return unitGst * qty;
+  const gstPercent = Math.max(0, Number(item?.gstPercent ?? item?.gst ?? 0));
+  const lineTotal = Number(item?.price || 0) * qty;
+  return (lineTotal * gstPercent) / 100;
+};
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -43,6 +56,7 @@ export default function CheckoutPage() {
     token,
     user,
     refreshCart,
+    removeFromCart,
   } = useAppContext();
 
   const [addresses, setAddresses] = useState([]);
@@ -109,8 +123,15 @@ export default function CheckoutPage() {
 
   const totalPaise =
     cartItems?.reduce((s, i) => s + toPaise(i.price) * (Number(i.qty) || 0), 0) ?? 0;
+  const totalGstPaise =
+    cartItems?.reduce((sum, item) => {
+      const lineGstPaise = toPaise(getLineGstAmount(item));
+      return sum + lineGstPaise;
+    }, 0) ?? 0;
   const walletBalancePaise = toPaise(walletBalance);
   const total = totalPaise / 100;
+  const totalGst = totalGstPaise / 100;
+  const totalInclGst = total + totalGst;
   const maxWalletUsePaise = Math.min(walletBalancePaise, totalPaise);
   const maxWalletUse = maxWalletUsePaise / 100;
   const useWalletAmountPaise = Math.min(toPaise(useWalletAmount), maxWalletUsePaise);
@@ -374,24 +395,25 @@ export default function CheckoutPage() {
     <>
       <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
 
-      <div className="min-h-screen bg-gray-50 py-10">
+      <div className="min-h-screen bg-[radial-gradient(circle_at_10%_0%,#ecfeff_0%,#f8fafc_42%,#ffffff_100%)] py-8 md:py-10">
         <div className="container mx-auto px-4 max-w-6xl">
-          <div className="flex items-center gap-4 mb-8">
-            <Link href="/cart" className="text-gray-600 hover:text-teal-700">
-              <ChevronLeft className="w-6 h-6" />
+          <div className="flex items-center gap-3 mb-6 md:mb-8">
+            <Link href="/cart" className="inline-flex items-center gap-1 text-gray-600 hover:text-teal-700">
+              <ChevronLeft className="w-5 h-5" />
+              <span className="text-base">Back</span>
             </Link>
-            <h1 className="text-3xl font-bold text-gray-900">Checkout</h1>
+            <h1 className="text-3xl font-extrabold text-gray-900">Checkout</h1>
             <div className="h-px grow bg-gray-200 hidden md:block" />
-            <div className="flex items-center gap-2 text-teal-700 font-medium">
-              <ShieldCheck size={20} />
-              <span className="text-sm uppercase tracking-wide">Secure Checkout</span>
+            <div className="flex items-center gap-2 text-slate-700 font-medium">
+              <ShieldCheck size={18} />
+              <span className="text-xs uppercase tracking-wide">Secure Checkout</span>
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-6">
               {/* Delivery Address */}
-              <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+              <div className="bg-white rounded-3xl p-6 shadow-[0_16px_35px_rgba(15,118,110,0.08)] border-2 border-teal-700/80">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                     <MapPin className="text-teal-700" /> 1. Delivery Address
@@ -459,10 +481,10 @@ export default function CheckoutPage() {
                       <div
                         key={addr._id}
                         onClick={() => setSelectedAddress(addr)}
-                        className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+                        className={`p-4 rounded-2xl border cursor-pointer transition-all ${
                           selectedAddress?._id === addr._id
-                            ? "border-teal-700 bg-teal-50/30"
-                            : "border-gray-100 bg-white hover:border-gray-200"
+                            ? "border-teal-700 bg-teal-50/30 shadow-sm"
+                            : "border-gray-200 bg-white hover:border-gray-300"
                         }`}
                       >
                         <div className="flex justify-between items-start mb-2">
@@ -486,13 +508,13 @@ export default function CheckoutPage() {
               </div>
 
               {/* Payment Method */}
-              <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+              <div className="bg-white rounded-3xl p-6 shadow-[0_16px_35px_rgba(15,118,110,0.08)] border-2 border-teal-700/80">
                 <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-6">
                   <CreditCard className="text-teal-700" /> 2. Payment Method
                 </h2>
 
                 {/* Wallet */}
-                <div className="flex items-center justify-between p-4 rounded-2xl border-2 border-gray-200 mb-4">
+                <div className="flex items-center justify-between p-4 rounded-2xl border border-slate-200 bg-slate-100/70 mb-4">
                   <div className="flex items-center gap-3">
                     <Wallet className="w-6 h-6 text-teal-700" />
                     <div>
@@ -531,11 +553,7 @@ export default function CheckoutPage() {
                 )}
 
                 {(razorpayAmount > 0 || useWalletAmount === 0) && (
-                  <div
-                    className={`p-4 rounded-2xl border-2 ${
-                      useWalletAmount > 0 ? "border-gray-200" : "border-teal-700 bg-teal-50/30"
-                    }`}
-                  >
+                  <div className={`p-4 rounded-2xl border-2 ${useWalletAmount > 0 ? "border-slate-200 bg-white" : "border-teal-700 bg-teal-50/30"}`}>
                     <p className="font-medium text-gray-800">
                       {razorpayAmount > 0
                         ? `Pay ${formatCurrency(razorpayAmount)} via Razorpay (Card / UPI / Net Banking)`
@@ -560,33 +578,63 @@ export default function CheckoutPage() {
 
             {/* Order Summary */}
             <div className="lg:col-span-1">
-              <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden sticky top-24">
-                <div className="bg-teal-700 p-6 text-white">
+              <div className="bg-white rounded-3xl shadow-[0_18px_40px_rgba(15,118,110,0.18)] border border-teal-100 overflow-hidden sticky top-24">
+                <div className="bg-linear-to-br from-teal-600 to-emerald-500 p-6 text-white">
                   <h2 className="text-lg font-bold">Order Summary</h2>
-                  <p className="text-gray-400 text-xs mt-1">{cartItems?.length ?? 0} items</p>
+                  <p className="text-teal-50/90 text-xs mt-1">({cartItems?.length ?? 0} items)</p>
                 </div>
 
                 <div className="p-6">
-                  <div className="space-y-4 mb-6 max-h-64 overflow-y-auto">
-                    {cartItems?.map((item) => (
-                      <div key={item._id} className="flex justify-between items-center">
-                        <div className="text-sm">
-                          <p className="font-bold text-gray-800 capitalize">
-                            {item.name} <span className="text-gray-400 font-normal">x {item.qty}</span>
-                          </p>
+                  <div className="space-y-3 mb-6 max-h-64 overflow-y-auto pr-1">
+                    {cartItems?.map((item) => {
+                      const itemGstPercent = Math.max(0, Number(item?.gstPercent ?? item?.gst ?? 0));
+                      const itemGstAmount = getLineGstAmount(item);
+                      const showItemGst = itemGstPercent > 0 && itemGstAmount > 0;
+                      return (
+                      <div key={item._id} className="rounded-xl border border-slate-200 bg-white p-2.5">
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          <img
+                            src={item?.image || item?.productImage || "/images/product-fallback.svg"}
+                            alt={item?.name || "Product"}
+                            className="h-10 w-10 rounded-md border border-slate-200 object-cover bg-slate-100"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-3">
+                              <p className="text-sm font-semibold text-gray-800 capitalize truncate">
+                                {item.name} <span className="text-gray-500 font-normal">x {item.qty}</span>
+                              </p>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="font-bold text-gray-800 whitespace-nowrap text-sm">
+                                  {formatCurrency((toPaise(item.price) * (Number(item.qty) || 0)) / 100)}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeFromCart(item._id)}
+                                  disabled={cartLoading || placing}
+                                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50 disabled:opacity-40"
+                                  aria-label="Remove item"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                            {showItemGst ? (
+                              <p className="text-[11px] text-gray-600 mt-0.5 leading-4">
+                                GST (Goods & Services Tax):{" "}
+                                <span className="inline-block whitespace-nowrap">
+                                  {formatPercent(itemGstPercent)} ({formatCurrency(itemGstAmount)})
+                                </span>
+                              </p>
+                            ) : (
+                              <p className="text-[11px] text-gray-500 mt-0.5 leading-4">GST not included</p>
+                            )}
+                          </div>
                         </div>
-                        <span className="font-bold text-gray-700">
-                          {formatCurrency((toPaise(item.price) * (Number(item.qty) || 0)) / 100)}
-                        </span>
                       </div>
-                    ))}
+                    )})}
                   </div>
 
                   <div className="space-y-3 pt-4 border-t border-gray-100 mb-6">
-                    <div className="flex justify-between text-sm text-gray-500">
-                      <span>Subtotal</span>
-                      <span>{formatCurrency(total)}</span>
-                    </div>
                     {minimumCheckoutAmount > 0 && (
                       <div className="flex justify-between text-sm text-gray-500">
                         <span>Minimum Order Value</span>
@@ -600,8 +648,8 @@ export default function CheckoutPage() {
                       </div>
                     )}
                     <div className="flex justify-between text-2xl font-black text-gray-900 pt-2">
-                      <span>Total</span>
-                      <span>{formatCurrency((razorpayAmount > 0 ? razorpayAmount : total) || 0)}</span>
+                      <span>Total (Incl. GST)</span>
+                      <span>{formatCurrency((razorpayAmount > 0 ? razorpayAmount : totalInclGst) || 0)}</span>
                     </div>
                   </div>
 

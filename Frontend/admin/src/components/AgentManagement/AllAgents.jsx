@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { CheckCircle, XCircle } from "lucide-react";
+import { CheckCircle, XCircle, Eye, ShieldBan, ShieldCheck, Trash2 } from "lucide-react";
 import { useContextApi } from "../../hooks/useContextApi";
 
 const DOC_LABELS = {
@@ -9,28 +9,39 @@ const DOC_LABELS = {
 };
 
 export default function AllAgents() {
-  const { getAgents, updateAgentKycStatus, updateAgent, getUploadBaseUrl } = useContextApi();
+  const { getAgents, updateAgentKycStatus, updateAgent, deleteAgent, getUploadBaseUrl } = useContextApi();
   const [activeTab, setActiveTab] = useState("All");
   const [agents, setAgents] = useState([]);
-  const [stats, setStats] = useState({ total: 0, active: 0, pending: 0, retailers: 0, payout: 0 });
+  const [stats, setStats] = useState({ total: 0, active: 0, pending: 0, inactive: 0, retailers: 0, payout: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [verifyingId, setVerifyingId] = useState(null);
   const [statusUpdatingId, setStatusUpdatingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const [selectedAgent, setSelectedAgent] = useState(null);
   const [kycStatusEdit, setKycStatusEdit] = useState("");
+
+  const tabs = [
+    { key: "All", label: "All", count: stats.total, statusFilter: undefined },
+    { key: "Active", label: "Active", count: stats.active, statusFilter: "Active" },
+    { key: "Pending", label: "Pending", count: stats.pending, statusFilter: "Pending" },
+    { key: "Blocked", label: "Blocked", count: stats.inactive, statusFilter: "Inactive" },
+  ];
+
+  const selectedTab = tabs.find((tab) => tab.key === activeTab) || tabs[0];
 
   const fetchAgents = async () => {
     setLoading(true);
     setError("");
     try {
-      const filter = activeTab === "All" ? undefined : activeTab;
+      const filter = selectedTab.statusFilter;
       const data = await getAgents(filter);
       setAgents(data.agents || []);
       setStats({
         total: data.total ?? 0,
         active: data.active ?? 0,
         pending: data.pending ?? 0,
+        inactive: data.inactive ?? 0,
         retailers: data.retailers ?? 0,
         payout: data.payout ?? 0,
       });
@@ -67,6 +78,21 @@ export default function AllAgents() {
     }
   };
 
+  const handleDeleteAgent = async (agentId) => {
+    if (!window.confirm("Delete this agent permanently? This will also remove the linked login if present.")) return;
+    try {
+      setDeletingId(agentId);
+      await deleteAgent(agentId);
+      if (selectedAgent?._id === agentId) setSelectedAgent(null);
+      await fetchAgents();
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || "Failed to delete agent";
+      setError(msg);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const uploadBase = getUploadBaseUrl();
   const docUrl = (path) => (path ? `${uploadBase}/uploads/${path}` : null);
 
@@ -78,16 +104,16 @@ export default function AllAgents() {
       </div>
 
       <div className="flex flex-wrap gap-2 mb-5">
-        {["All", "Active", "Pending"].map((tab) => (
+        {tabs.map((tab) => (
           <button
-            key={tab}
+            key={tab.key}
             type="button"
-            onClick={() => setActiveTab(tab)}
+            onClick={() => setActiveTab(tab.key)}
             className={`px-4 py-1.5 rounded-full text-sm font-medium ${
-              activeTab === tab ? "bg-blue-600 text-white" : "bg-white border border-gray-200 hover:bg-gray-50"
+              activeTab === tab.key ? "bg-blue-600 text-white" : "bg-white border border-gray-200 hover:bg-gray-50"
             }`}
           >
-            {tab} ({tab === "All" ? stats.total : tab === "Active" ? stats.active : stats.pending})
+            {tab.label} ({tab.count})
           </button>
         ))}
       </div>
@@ -95,6 +121,7 @@ export default function AllAgents() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-5">
         <StatCard title="Total Agents" value={stats.total} />
         <StatCard title="Active Agents" value={stats.active} />
+        <StatCard title="Blocked Agents" value={stats.inactive} />
         <StatCard title="Retailers Onboarded" value={stats.retailers} />
         <StatCard title="Pending Payouts" value={`₹${stats.payout}`} />
       </div>
@@ -118,13 +145,14 @@ export default function AllAgents() {
         )}
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse min-w-[1000px]">
+          <table className="w-full text-sm border-collapse min-w-[1180px]">
             <thead className="bg-gray-100">
               <tr>
                 <th className="p-3 text-left w-14">S.No</th>
                 <th className="p-3 text-left">Name</th>
                 <th className="p-3 text-left">Contact</th>
                 <th className="p-3 text-left">Territory</th>
+                <th className="p-3 text-left">Address</th>
                 <th className="p-3 text-left">Referral Code</th>
                 <th className="p-3 text-left">Retailers</th>
                 <th className="p-3 text-left">Commission</th>
@@ -137,12 +165,12 @@ export default function AllAgents() {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan="11" className="p-5 text-center text-gray-500">Loading...</td>
+                  <td colSpan="12" className="p-5 text-center text-gray-500">Loading...</td>
                 </tr>
               )}
               {!loading && agents.length === 0 && (
                 <tr>
-                  <td colSpan="11" className="p-5 text-center text-gray-500">No agents found</td>
+                  <td colSpan="12" className="p-5 text-center text-gray-500">No agents found</td>
                 </tr>
               )}
               {!loading && agents.map((agent, idx) => (
@@ -154,6 +182,7 @@ export default function AllAgents() {
                     {agent.email && <div className="text-gray-500 text-xs">{agent.email}</div>}
                   </td>
                   <td className="p-3">{agent.territory || "—"}</td>
+                  <td className="p-3 max-w-[220px] truncate" title={agent.address || ""}>{agent.address || "—"}</td>
                   <td className="p-3 font-mono text-xs">{agent.referralCode || "—"}</td>
                   <td className="p-3">{agent.retailersOnboarded ?? 0}</td>
                   <td className="p-3">₹{(agent.totalEarned ?? 0).toFixed(2)}</td>
@@ -169,48 +198,52 @@ export default function AllAgents() {
                     </span>
                   </td>
                   <td className="p-3">
-                    <div
-                      className="inline-flex rounded-lg border border-gray-200 bg-gray-100 p-0.5"
-                      role="group"
-                      aria-label="Toggle agent status"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateStatus(agent._id, "Active")}
-                        disabled={statusUpdatingId === agent._id}
-                        className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium transition disabled:opacity-50 ${
-                          agent.status === "Active"
-                            ? "bg-green-600 text-white shadow-sm"
-                            : "text-gray-600 hover:bg-white hover:text-green-700"
-                        }`}
-                      >
-                        Active
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateStatus(agent._id, "Pending")}
-                        disabled={statusUpdatingId === agent._id}
-                        className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium transition disabled:opacity-50 ${
-                          agent.status === "Pending"
-                            ? "bg-amber-500 text-white shadow-sm"
-                            : "text-gray-600 hover:bg-white hover:text-amber-700"
-                        }`}
-                      >
-                        Pending
-                      </button>
-                    </div>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                      agent.status === "Active"
+                        ? "bg-green-100 text-green-700"
+                        : agent.status === "Inactive"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-amber-100 text-amber-700"
+                    }`}>
+                      {agent.status || "Pending"}
+                    </span>
                   </td>
                   <td className="p-3 whitespace-nowrap">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedAgent(agent);
-                        setKycStatusEdit(agent.kycStatus || "BLANK");
-                      }}
-                      className="shrink-0 px-3 py-1.5 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
-                    >
-                      View
-                    </button>
+                    <div className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 p-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedAgent(agent);
+                          setKycStatusEdit(agent.kycStatus || "BLANK");
+                        }}
+                        className="inline-flex items-center gap-1.5 shrink-0 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+                      >
+                        <Eye size={14} />
+                        View
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateStatus(agent._id, agent.status === "Inactive" ? "Active" : "Inactive")}
+                        disabled={statusUpdatingId === agent._id}
+                        className={`inline-flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium border disabled:opacity-50 ${
+                          agent.status === "Inactive"
+                            ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                            : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
+                        }`}
+                      >
+                        {agent.status === "Inactive" ? <ShieldCheck size={14} /> : <ShieldBan size={14} />}
+                        {agent.status === "Inactive" ? "Unblock" : "Block"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAgent(agent._id)}
+                        disabled={deletingId === agent._id}
+                        className="shrink-0 px-3 py-1.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-black disabled:opacity-50 inline-flex items-center gap-1.5"
+                      >
+                        <Trash2 size={14} />
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -232,6 +265,7 @@ export default function AllAgents() {
               <AgentInfo label="Email" value={selectedAgent.email} />
               <AgentInfo label="Phone" value={selectedAgent.phone} />
               <AgentInfo label="Territory" value={selectedAgent.territory} />
+              <AgentInfo label="Address" value={selectedAgent.address} />
               <AgentInfo label="Referral Code" value={selectedAgent.referralCode} />
 
               <h3 className="font-semibold text-gray-800 pt-2">Identity</h3>

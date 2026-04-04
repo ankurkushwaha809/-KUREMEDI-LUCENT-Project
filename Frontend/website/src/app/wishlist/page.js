@@ -22,8 +22,8 @@ export default function WishlistPage() {
     try {
       await addToCart(item._id, 1);
       showToast("Added to cart");
-    } catch {
-      showToast("Could not add to cart.", "error");
+    } catch (err) {
+      showToast(err?.message || "Could not add to cart.", "error");
     }
   };
 

@@ -109,13 +109,27 @@ export const placeOrder = async (req, res) => {
  */
 export const getMyOrders = async (req, res) => {
   try {
+    const toTrackingUrl = (awb, trackingUrl) => {
+      if (!awb) return null;
+      const safe = `https://shiprocket.co/tracking/${encodeURIComponent(awb)}`;
+      if (!trackingUrl) return safe;
+      if (trackingUrl.includes("track.shiprocket.in")) return safe;
+      if (trackingUrl.includes("shiprocket.in/shipment-tracking")) return safe;
+      return trackingUrl;
+    };
+
     const orders = await Order.find({ user: req.user._id })
       .sort({ createdAt: -1 })
       .lean();
-    // Don't send AWB or shipment ID to customer; they see live status on our site only
     const sanitized = orders.map((o) => {
-      const { shiprocketAwb, shiprocketShipmentId, ...rest } = o;
-      return rest;
+      const awb = o.shiprocketAwb || null;
+      const trackingUrl = toTrackingUrl(awb, o.trackingUrl);
+
+      return {
+        ...o,
+        shiprocketAwb: awb,
+        trackingUrl,
+      };
     });
     res.json(sanitized);
   } catch (err) {
@@ -145,6 +159,15 @@ export const getAllOrders = async (req, res) => {
  */
 export const getOrderTracking = async (req, res) => {
   try {
+    const toTrackingUrl = (awb, trackingUrl) => {
+      if (!awb) return null;
+      const safe = `https://shiprocket.co/tracking/${encodeURIComponent(awb)}`;
+      if (!trackingUrl) return safe;
+      if (trackingUrl.includes("track.shiprocket.in")) return safe;
+      if (trackingUrl.includes("shiprocket.in/shipment-tracking")) return safe;
+      return trackingUrl;
+    };
+
     const order = await Order.findById(req.params.orderId);
     if (!order) return res.status(404).json({ message: "Order not found" });
     if (order.user.toString() !== req.user._id.toString()) {
@@ -164,7 +187,8 @@ export const getOrderTracking = async (req, res) => {
       order: {
         _id: order._id,
         status: order.status,
-        trackingUrl: order.trackingUrl,
+        trackingUrl: toTrackingUrl(order.shiprocketAwb, order.trackingUrl),
+        trackingNumber: order.shiprocketAwb || null,
         createdAt: order.createdAt,
         items: order.items,
         shippingAddress: order.shippingAddress,

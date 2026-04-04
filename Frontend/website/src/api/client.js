@@ -2,6 +2,30 @@ import { API_BASE_URL } from "../config";
 
 const getToken = () => (typeof window !== "undefined" ? localStorage.getItem("token") : null);
 
+function forceLogoutIfBlocked(status, data) {
+  if (typeof window === "undefined") return;
+  const hasToken = !!localStorage.getItem("token");
+  if (!hasToken) return;
+
+  const message = String(data?.message || "").toLowerCase();
+  const isBlocked = status === 403 && message.includes("blocked");
+  const isUnauthorized = status === 401;
+
+  if (!isBlocked && !isUnauthorized) return;
+
+  if (isBlocked && data?.message) {
+    try {
+      sessionStorage.setItem("blocked_message", String(data.message));
+    } catch (_) {}
+  }
+
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+  if (window.location.pathname !== "/login") {
+    window.location.href = isBlocked ? "/login?blocked=1" : "/login";
+  }
+}
+
 async function parseResponse(res) {
   const raw = await res.text();
   let data = null;
@@ -15,6 +39,7 @@ async function parseResponse(res) {
   }
 
   if (!res.ok) {
+    forceLogoutIfBlocked(res.status, data);
     const error = new Error(data?.message || `Request failed with status ${res.status}`);
     error.status = res.status;
     error.data = data;

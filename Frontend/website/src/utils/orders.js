@@ -86,6 +86,9 @@ export function flattenOrderedProducts(orders) {
         quantity,
         unitPrice,
         lineTotal,
+        shiprocketShipmentId: order?.shiprocketShipmentId || null,
+        shiprocketAwb: order?.shiprocketAwb || null,
+        trackingUrl: order?.trackingUrl || null,
       };
     });
   });
