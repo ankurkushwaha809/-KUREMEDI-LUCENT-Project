@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { ArrowRight, Eye, EyeOff, Loader2, Lock, Mail } from 'lucide-react';
 import { useAppContext } from '@/context/context';
 import { showToast } from '@/utils/toast';
@@ -24,7 +24,6 @@ function LoginField({ icon: Icon, error, className = '', ...props }) {
 
 export default function LoginPage() {
     const router = useRouter();
-    const searchParams = useSearchParams();
     const { token, login, loginWithPassword } = useAppContext();
 
     const [form, setForm] = useState({ email: '', password: '' });
@@ -32,26 +31,31 @@ export default function LoginPage() {
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [blockedMessage, setBlockedMessage] = useState('');
+    const [isBlocked, setIsBlocked] = useState(false);
 
     useEffect(() => {
         if (token) router.replace('/');
     }, [router, token]);
 
     useEffect(() => {
-        if (searchParams.get('blocked') !== '1') {
+        if (typeof window === 'undefined') return;
+
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('blocked') !== '1') {
             setBlockedMessage('');
+            setIsBlocked(false);
             return;
         }
+
+        setIsBlocked(true);
         let msg = 'Your account is blocked. Please contact support.';
-        if (typeof window !== 'undefined') {
-            const stored = sessionStorage.getItem('blocked_message');
-            if (stored) {
-                msg = stored;
-                sessionStorage.removeItem('blocked_message');
-            }
+        const stored = sessionStorage.getItem('blocked_message');
+        if (stored) {
+            msg = stored;
+            sessionStorage.removeItem('blocked_message');
         }
         setBlockedMessage(msg);
-    }, [searchParams]);
+    }, []);
 
     const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
 
@@ -102,9 +106,9 @@ export default function LoginPage() {
                             Login with your email and password. If you forget either, use recovery to reset on a separate page.
                         </p>
 
-                        {blockedMessage ? (
+                        {isBlocked ? (
                             <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                                <p className="font-semibold">{blockedMessage}</p>
+                                <p className="font-semibold">{blockedMessage || 'Your account is blocked. Please contact support.'}</p>
                                 <Link href="/support" className="mt-1 inline-block text-xs font-semibold underline underline-offset-2 text-red-900">
                                     Contact Customer Support
                                 </Link>
