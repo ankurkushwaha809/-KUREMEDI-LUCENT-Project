@@ -84,7 +84,7 @@ export default function Header() {
                             <Link href="/" className="shrink-0">
                                 <Image src="/Kure.png" width={200} height={20} alt="Scaleten" className="h-auto" />
                             </Link>
-
+ 
                             <button className="hidden md:flex items-center gap-2 border-l border-gray-300 pl-6 text-left">
                                 <span className="text-base">⚡</span>
                                 <span>
