@@ -1,0 +1,35 @@
+name: Deploy Backend to AWS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to AWS EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ubuntu
+          key: ${{ secrets.AWS_SSH_KEY }}
+          script: |
+            echo "Starting deploy..."
+
+            cd /var/www/-KUREMEDI-LUCENT-Project
+
+            git config --global --add safe.directory /var/www/-KUREMEDI-LUCENT-Project
+            git pull origin main
+
+            cd backend
+            npm install
+
+            pm2 restart lucent-backend || pm2 start index.js --name lucent-backend
+            pm2 save
+
+            echo "Deploy complete"
