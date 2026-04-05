@@ -12,7 +12,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useContextApi } from "../hooks/useContextApi";
 
 const Navbar = ({ className = "" }) => {
-    const loggedInSalesName = "KUREMEDI LUCENT bio";
+    const loggedInSalesName = "KUREMEDI LUCENT bio 2";
     const navigate = useNavigate();
     const [, setSearchParams] = useSearchParams();
     const { setActiveTab, getProducts } = useContextApi();
