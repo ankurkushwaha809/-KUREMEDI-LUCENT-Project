@@ -19,11 +19,9 @@ jobs:
           username: ubuntu
           key: ${{ secrets.AWS_SSH_KEY }}
           script: |
-            echo "Starting deploy..."
+            echo "Deploy started"
 
             cd /var/www/-KUREMEDI-LUCENT-Project
-
-            git config --global --add safe.directory /var/www/-KUREMEDI-LUCENT-Project
             git pull origin main
 
             cd backend
@@ -32,4 +30,4 @@ jobs:
             pm2 restart lucent-backend || pm2 start index.js --name lucent-backend
             pm2 save
 
-            echo "Deploy complete"
+            echo "Deploy finished"
