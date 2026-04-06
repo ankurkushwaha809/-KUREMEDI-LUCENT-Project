@@ -9,11 +9,12 @@ import { Toaster } from 'react-hot-toast'
 import { ContextProvider } from './context/context.jsx'
 import { AppSidebar } from './components/app-sidebar.jsx'
 
+const routerBase = (import.meta.env.BASE_URL || '/').replace(/\/$/, '') || '/';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ContextProvider>
-    <BrowserRouter>
+    <BrowserRouter basename={routerBase}>
         <main>
 
           <App />
