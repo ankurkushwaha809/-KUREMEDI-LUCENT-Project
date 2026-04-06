@@ -19,16 +19,12 @@ import { Button } from "@/components/ui/button";
 import { useContextApi } from "../hooks/useContextApi";
 import AddCategoryField from "./AddCategoryField";
 import AddCategory from "./AddCategory";
-
-// Always use this base for category image URLs so they work regardless of VITE_BASE_URL
-const IMAGE_BASE_URL = "https://api.kuremedi.com";
+import { resolveUploadUrl } from "../lib/baseUrl";
 
 const getCategoryImageUrl = (item) => {
     const img = item?.image;
     if (!img) return null;
-    if (typeof img === "string" && (img.startsWith("http") || img.startsWith("blob:"))) return img;
-    const p = String(img).replace(/\\/g, "/").replace(/^\//, "");
-    return `${IMAGE_BASE_URL}/${p}`;
+    return resolveUploadUrl(img);
 };
 
 export default function Categories() {

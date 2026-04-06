@@ -1,8 +1,37 @@
 import mongoose from "mongoose";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import Product from "../model/Product.js";
 import Category from "../model/Category.js";
 import Brand from "../model/Brand.js";
 import { normalizeGstMode, normalizePercent } from "../utils/pricing.js";
+import { uploadImagesToCloudinary } from "../utils/cloudinaryUpload.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const hasLegacyFilePath = (value) => {
+  if (!value || typeof value !== "string") return false;
+  const raw = value.trim();
+  if (!raw || raw.startsWith("data:") || /^https?:\/\//i.test(raw)) return false;
+  const normalized = raw.replace(/\\/g, "/").replace(/^\/+/, "");
+
+  const candidates = [
+    path.resolve(process.cwd(), normalized),
+    path.resolve(process.cwd(), "backend", normalized),
+    path.resolve(__dirname, "..", normalized),
+  ];
+
+  return candidates.some((abs) => fs.existsSync(abs));
+};
+
+const isKeepableImageValue = (value) => {
+  if (!value || typeof value !== "string") return false;
+  const raw = value.trim();
+  if (!raw) return false;
+  if (/^https?:\/\//i.test(raw)) return true;
+  return hasLegacyFilePath(raw);
+};
 
 const parseProductBody = (body) => {
   const obj = { ...body };
@@ -51,6 +80,13 @@ const resolveGstMode = ({ rawMode, gstPercent, fallbackMode = "exclude" }) => {
   return Number(gstPercent) > 0 ? "include" : normalizeGstMode(fallbackMode);
 };
 
+const resolveProductErrorStatus = (error) => {
+  const message = String(error?.message || "").toLowerCase();
+  if (message.includes("cloudinary")) return 500;
+  if (message.includes("econn") || message.includes("timeout")) return 502;
+  return 400;
+};
+
 export const createProduct = async (req, res) => {
   try {
     const data = parseProductBody(req.body);
@@ -76,9 +112,11 @@ export const createProduct = async (req, res) => {
       return res.status(400).json({ success: false, message: "Brand is required" });
     }
     if (req.files?.length) {
-      data.productImages = req.files.map((f) => f.path);
+      data.productImages = await uploadImagesToCloudinary(req.files, {
+        folder: "lucent/products",
+      });
     } else if (Array.isArray(req.body.productImages)) {
-      data.productImages = req.body.productImages;
+      data.productImages = req.body.productImages.filter(isKeepableImageValue);
     } else {
       data.productImages = [];
     }
@@ -86,7 +124,7 @@ export const createProduct = async (req, res) => {
     await product.populate(["category", "brand"]);
     res.status(201).json(product);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(resolveProductErrorStatus(error)).json({ message: error.message });
   }
 };
 
@@ -136,9 +174,13 @@ export const updateProduct = async (req, res) => {
         baseImages = product.productImages || [];
       }
     }
+    baseImages = baseImages.filter(isKeepableImageValue);
+
     if (req.files?.length) {
-      const newPaths = req.files.map((f) => f.path);
-      data.productImages = [...baseImages, ...newPaths].slice(0, 6);
+      const newPaths = await uploadImagesToCloudinary(req.files, {
+        folder: "lucent/products",
+      });
+      data.productImages = [...newPaths, ...baseImages].slice(0, 6);
     } else if (req.body?.existingProductImages !== undefined) {
       data.productImages = baseImages.slice(0, 6);
     }
@@ -148,7 +190,7 @@ export const updateProduct = async (req, res) => {
     await product.populate(["category", "brand"]);
     res.json(product);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(resolveProductErrorStatus(error)).json({ message: error.message });
   }
 };
 

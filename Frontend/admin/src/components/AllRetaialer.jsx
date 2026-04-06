@@ -2,16 +2,19 @@ import React, { useEffect, useState, useMemo } from "react";
 import axios from "axios";
 import { ChevronLeft, ChevronRight, ShieldBan, ShieldCheck, Trash2 } from "lucide-react";
 import { useContextApi } from "../hooks/useContextApi";
+import { ADMIN_API_BASE_URL, resolveUploadUrl } from "../lib/baseUrl";
 
 
 /* ================= BACKEND CONFIG ================= */
 
-let rawBase = import.meta.env.VITE_BASE_URL || "https://api.kuremedi.com/api";
-rawBase = rawBase.trim().replace("https:/.kuremedi.com", "https://api.kuremedi.com");
-const API_BASE = rawBase.replace(/\/$/, "");
-const UPLOAD_BASE = rawBase.replace(/\/api\/?$/, "") || "https://api.kuremedi.com";
-const fileUrl = (file) =>
-  file ? `${UPLOAD_BASE}/uploads/${String(file).replace(/^\/+/, "").replace(/\\/g, "/")}` : null;
+const API_BASE = ADMIN_API_BASE_URL;
+const fileUrl = (file) => {
+  if (!file) return null;
+  const normalized = String(file).replace(/^\/+/, "").replace(/\\/g, "/");
+  return normalized.startsWith("uploads/")
+    ? resolveUploadUrl(normalized)
+    : resolveUploadUrl(`uploads/${normalized}`);
+};
 
 const updateKYCStatus = async (userId, status, rejectionReason = "") => {
   try {
@@ -34,6 +37,8 @@ export default function AllRetailer() {
   const [reprocessing, setReprocessing] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [deleteHistory, setDeleteHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
@@ -46,22 +51,51 @@ export default function AllRetailer() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
+  const refreshRetailers = async () => {
+    setLoading(true);
+    setLoadError("");
+    try {
+      const res = await getAllUsers();
+      const allUsers = res?.users || res || [];
+      const retailersOnly = allUsers.filter((u) => {
+        const role = String(u?.role || "").toLowerCase();
+        return !role || role === "user" || role === "vendor" || role === "retailer";
+      });
+      setUsers(retailersOnly);
+      const historyRes = await getDeletedUsersHistory(20);
+      setDeleteHistory(historyRes?.history || []);
+    } catch (err) {
+      console.log("Error:", err);
+      setLoadError(err?.response?.data?.message || err?.message || "Failed to load retailers");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   /* ================= FETCH USERS ================= */
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await getAllUsers();
-        const allUsers = res?.users || res || [];
-        const retailersOnly = allUsers.filter((u) => !u.role || u.role === "user");
-        setUsers(retailersOnly);
-        const historyRes = await getDeletedUsersHistory(20);
-        setDeleteHistory(historyRes?.history || []);
-      } catch (err) {
-        console.log("Error:", err);
+    refreshRetailers();
+  }, [getAllUsers, getDeletedUsersHistory]);
+
+  useEffect(() => {
+    const handleFocus = () => {
+      refreshRetailers();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshRetailers();
       }
     };
-    fetchData();
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [getAllUsers, getDeletedUsersHistory]);
 
   useEffect(() => () => { }, []);
@@ -172,6 +206,13 @@ export default function AllRetailer() {
         <p className="text-gray-500 text-sm mt-1">
           Verify and manage retailers
         </p>
+        <button
+          type="button"
+          onClick={refreshRetailers}
+          className="mt-3 inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+        >
+          Refresh list
+        </button>
       </div>
 
       {/* Search */}
@@ -216,6 +257,18 @@ export default function AllRetailer() {
 
       {/* Table */}
       <div className="bg-white rounded-xl shadow-md overflow-x-auto">
+        {loadError && (
+          <div className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {loadError}
+          </div>
+        )}
+
+        {loading && (
+          <div className="px-4 py-6 text-center text-sm text-gray-500">
+            Loading retailers...
+          </div>
+        )}
+
         <table className="w-full text-sm min-w-[800px] border-collapse">
           <thead className="bg-gray-100">
             <tr>
@@ -231,12 +284,12 @@ export default function AllRetailer() {
           </thead>
 
           <tbody>
-            {filtered.length === 0 && (
+            {!loading && filtered.length === 0 && (
               <tr>
                 <td colSpan="8" className="p-5 text-center text-gray-500">No retailers found</td>
               </tr>
             )}
-            {paginatedRetailers.map((r, idx) => (
+            {!loading && paginatedRetailers.map((r, idx) => (
               <tr key={r._id} className="border-t border-gray-200 hover:bg-blue-50">
                 <td className="p-3 text-gray-500 font-medium">
                   {(currentPage - 1) * itemsPerPage + idx + 1}

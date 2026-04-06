@@ -156,6 +156,7 @@ const items = [
     title: "Settings",
     icon: Settings,
     children: [
+      { title: "Admin Security", icon: Settings },
       { title: "General Settings", icon: Settings },
       { title: "Roles & Permissions", icon: User },
       { title: "System Config", icon: Settings },
@@ -173,8 +174,22 @@ const getParentForTab = (tabName) => {
 
 export function AppSidebar({ collapsed = false }) {
   const [openItem, setOpenItem] = useState(null);
-  const { setActiveTab, activeTab } = useContextApi();
+  const { setActiveTab, activeTab, getMyProfile } = useContextApi();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [isPrimaryAdmin, setIsPrimaryAdmin] = useState(false);
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const profile = await getMyProfile();
+        const email = String(profile?.email || "").trim().toLowerCase();
+        setIsPrimaryAdmin(email === "ankurkushwaha237@gmail.com");
+      } catch {
+        setIsPrimaryAdmin(false);
+      }
+    };
+    loadProfile();
+  }, [getMyProfile]);
 
   // Auto-expand parent when activeTab is a child
   useEffect(() => {
@@ -247,7 +262,14 @@ export function AppSidebar({ collapsed = false }) {
                             }`}
                         >
                           <div className="mt-1 ml-4 pl-4 border-l border-slate-600/50 space-y-0.5 py-1">
-                            {item.children.map((child) => (
+                            {item.children
+                              .filter((child) => {
+                                if (item.title === "Settings" && child.title === "Admin Security") {
+                                  return isPrimaryAdmin;
+                                }
+                                return true;
+                              })
+                              .map((child) => (
                               <button
                                 key={child.title}
                                 type="button"

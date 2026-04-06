@@ -3,11 +3,29 @@
  */
 import { API_UPLOAD_BASE } from "../config";
 
+const stripLeadingSlashes = (value) => String(value || "").replace(/^\/+/, "");
+
 export function getImageUrl(path) {
   if (!path) return "";
-  if (path.startsWith("http")) return path;
-  const p = String(path).replace(/\\/g, "/").replace(/^\//, "");
-  return `${API_UPLOAD_BASE}/${p}`;
+  const raw = String(path).trim();
+  if (!raw) return "";
+  if (raw.startsWith("blob:") || raw.startsWith("data:")) return raw;
+
+  const normalized = raw.replace(/\\/g, "/");
+
+  try {
+    const url = new URL(raw);
+    const pathname = stripLeadingSlashes(url.pathname);
+    // If DB has stale absolute URL, remap only upload paths to current API host.
+    if (pathname.includes("uploads/")) {
+      const uploadPath = pathname.slice(pathname.indexOf("uploads/"));
+      return `${API_UPLOAD_BASE}/${uploadPath}`;
+    }
+    return raw;
+  } catch {
+    const p = stripLeadingSlashes(normalized);
+    return `${API_UPLOAD_BASE}/${p}`;
+  }
 }
 
 export function normalizeProduct(p) {

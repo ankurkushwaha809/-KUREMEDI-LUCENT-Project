@@ -2,12 +2,10 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { Settings } from "lucide-react";
+import { ADMIN_API_BASE_URL } from "../../lib/baseUrl";
 
 export default function SystemConfig() {
-  let rawBase = import.meta.env.VITE_BASE_URL || "https://api.kuremedi.com/api";
-  rawBase = rawBase.trim();
-  rawBase = rawBase.replace("https:/.kuremedi.com", "https://api.kuremedi.com");
-  const BASE_URL = rawBase.replace(/\/$/, "");
+  const BASE_URL = ADMIN_API_BASE_URL;
 
   const [config, setConfig] = useState({
     minimumCheckoutAmount: 0,

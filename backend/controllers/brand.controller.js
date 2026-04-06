@@ -1,4 +1,5 @@
 import Brand from "../model/Brand.js";
+import { uploadImageToCloudinary } from "../utils/cloudinaryUpload.js";
 
 // CREATE BRAND
 export const createBrand = async (req, res) => {
@@ -17,10 +18,14 @@ export const createBrand = async (req, res) => {
         .json({ success: false, message: "Brand already exists" });
     }
 
+    const logo = req.file
+      ? await uploadImageToCloudinary(req.file, { folder: "lucent/brands" })
+      : undefined;
+
     const brand = await Brand.create({
       name: String(name).trim(),
       description: description ? String(description).trim() : undefined,
-      logo: req.file ? req.file.path : undefined,
+      logo,
       isActive: isActive !== undefined ? isActive : true,
     });
 
@@ -65,7 +70,11 @@ export const updateBrand = async (req, res) => {
     }
     if (description !== undefined) brand.description = description;
     if (isActive !== undefined) brand.isActive = isActive;
-    if (req.file) brand.logo = req.file.path;
+    if (req.file) {
+      brand.logo = await uploadImageToCloudinary(req.file, {
+        folder: "lucent/brands",
+      });
+    }
 
     await brand.save();
 

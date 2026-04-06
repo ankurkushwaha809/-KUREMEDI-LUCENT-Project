@@ -10,11 +10,13 @@ import { fileURLToPath } from "url";
 import User from "../model/User.js";
 import Agent from "../model/Agent.js";
 import Otp from "../model/Otp.js";
+import AdminOtp from "../model/AdminOtp.js";
 import DeletedUserHistory from "../model/DeletedUserHistory.js";
 import { protect } from "../middleware/protect.js";
 import { authorizeRoles } from "../middleware/authorize.js";
 import { requireAgent } from "../middleware/requireAgent.js";
 import { sendOtpSms } from "../utils/smsService.js";
+import { sendEmail } from "../utils/mailer.js";
 
 dotenv.config();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -44,10 +46,69 @@ const generateToken = (payload, expiresIn = "7d") =>
 
 const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
 const normalizePhone = (value) => String(value || "").trim();
+const PRIMARY_ADMIN_EMAIL = normalizeEmail(
+  process.env.PRIMARY_ADMIN_EMAIL || "ankurkushwaha237@gmail.com"
+);
+const ADMIN_SECURITY_QUESTION_OPTIONS = [
+  "What was the name of your first school?",
+  "What is your mother's maiden name?",
+  "What was your childhood nickname?",
+  "What is the name of your best friend from childhood?",
+  "What was the make/model of your first vehicle?",
+  "In which city were you born?",
+  "What is your favorite teacher's name?",
+  "What was your first job?",
+  "What is your favorite movie?",
+  "What is the name of your first pet?",
+];
 const stripPassword = (user) => {
   const userObj = user.toObject();
   delete userObj.password;
   return userObj;
+};
+
+const isPrimaryAdminEmail = (email) => normalizeEmail(email) === PRIMARY_ADMIN_EMAIL;
+const hashValue = (value) =>
+  crypto.createHash("sha256").update(String(value || "")).digest("hex");
+
+const sendAdminEmailOtp = async ({ to, otp, subject, messagePrefix }) => {
+  const text = `${messagePrefix} ${otp}. It expires in 10 minutes.`;
+  const html = `<p>${messagePrefix} <strong>${otp}</strong>.</p><p>This code expires in 10 minutes.</p>`;
+  return sendEmail({ to, subject, text, html });
+};
+
+const createAdminOtp = async ({ email, destination, purpose, meta = {} }) => {
+  const otp = crypto.randomInt(100000, 999999).toString();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+  await AdminOtp.findOneAndUpdate(
+    { email, destination, purpose },
+    {
+      email,
+      destination,
+      purpose,
+      otpHash: hashValue(otp),
+      expiresAt,
+      meta,
+      verifiedAt: null,
+    },
+    { upsert: true, new: true }
+  );
+  return otp;
+};
+
+const verifyAdminOtp = async ({ email, destination, purpose, otp }) => {
+  const otpDoc = await AdminOtp.findOne({ email, destination, purpose });
+  if (!otpDoc) return { ok: false, message: "Invalid or expired code" };
+  if (new Date() > otpDoc.expiresAt) {
+    await AdminOtp.deleteOne({ _id: otpDoc._id });
+    return { ok: false, message: "Code has expired" };
+  }
+  if (otpDoc.otpHash !== hashValue(otp)) {
+    return { ok: false, message: "Invalid or expired code" };
+  }
+  otpDoc.verifiedAt = new Date();
+  await otpDoc.save();
+  return { ok: true, otpDoc };
 };
 
 // ----------------------
@@ -490,6 +551,543 @@ router.post("/login", async (req, res) => {
       user: stripPassword(user),
       token: generateToken({ id: user._id }),
     });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.post("/admin/forgot-password/questions", async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body?.email);
+    if (!email) return res.status(400).json({ message: "Admin email is required" });
+
+    const user = await User.findOne({ email, role: "admin" }).select("adminSecurityQuestions");
+    if (!user) {
+      return res.status(404).json({ message: "Admin account not found" });
+    }
+
+    const questions = Array.isArray(user.adminSecurityQuestions)
+      ? user.adminSecurityQuestions
+          .map((item) => String(item?.question || "").trim())
+          .filter(Boolean)
+      : [];
+
+    if (questions.length !== 3) {
+      return res.status(400).json({ message: "Security questions are not configured for this admin" });
+    }
+
+    res.json({ questions });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.post("/admin/forgot-password/verify-security-answers", async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body?.email);
+    const securityQuestions = Array.isArray(req.body?.securityQuestions)
+      ? req.body.securityQuestions
+      : [];
+
+    if (!email) return res.status(400).json({ message: "Admin email is required" });
+    if (securityQuestions.length !== 3) {
+      return res.status(400).json({ message: "Please answer all 3 security questions" });
+    }
+
+    const user = await User.findOne({ email, role: "admin" }).select(
+      "adminSecurityQuestions.question adminSecurityQuestions.updatedAt +adminSecurityQuestions.answerHash"
+    );
+    if (!user) {
+      return res.status(404).json({ message: "Admin account not found" });
+    }
+
+    const savedQuestions = Array.isArray(user.adminSecurityQuestions) ? user.adminSecurityQuestions : [];
+    if (savedQuestions.length !== 3) {
+      return res.status(400).json({ message: "Security questions are not configured for this admin" });
+    }
+
+    const hasInvalidConfiguredQuestion = savedQuestions.some((item) => {
+      const question = String(item?.question || "").trim();
+      const answerHash = String(item?.answerHash || "").trim();
+      return !question || !answerHash;
+    });
+    if (hasInvalidConfiguredQuestion) {
+      return res.status(400).json({ message: "Security questions are not configured correctly. Please update them from Admin Security." });
+    }
+
+    const savedQuestionMap = new Map(
+      savedQuestions.map((item) => [String(item?.question || "").trim().toLowerCase(), item])
+    );
+
+    const seenQuestions = new Set();
+    for (const item of securityQuestions) {
+      const question = String(item?.question || "").trim();
+      const answer = String(item?.answer || "").trim();
+
+      if (!question || !answer) {
+        return res.status(400).json({ message: "Each security question must have an answer" });
+      }
+
+      const key = question.toLowerCase();
+      if (seenQuestions.has(key)) {
+        return res.status(400).json({ message: "Security questions must be unique" });
+      }
+      seenQuestions.add(key);
+
+      const matchedQuestion = savedQuestionMap.get(key);
+      if (!matchedQuestion) {
+        return res.status(401).json({ message: "Security question verification failed" });
+      }
+
+      const storedHash = String(matchedQuestion?.answerHash || "").trim();
+      if (!storedHash) {
+        return res.status(400).json({ message: "Security questions are not configured correctly. Please update them from Admin Security." });
+      }
+
+      let isAnswerValid = false;
+      try {
+        isAnswerValid = await bcrypt.compare(answer, storedHash);
+      } catch {
+        return res.status(400).json({ message: "Security questions are not configured correctly. Please update them from Admin Security." });
+      }
+      if (!isAnswerValid) {
+        return res.status(401).json({ message: "Security question verification failed" });
+      }
+    }
+
+    const resetToken = generateToken({ id: user._id, purpose: "admin-forgot-password-reset" }, "10m");
+    res.json({
+      message: "Security questions verified",
+      resetToken,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.post("/admin/forgot-password/reset", async (req, res) => {
+  try {
+    const resetToken = String(req.body?.resetToken || "").trim();
+    const newPassword = String(req.body?.newPassword || "").trim();
+    const confirmPassword = String(req.body?.confirmPassword || "").trim();
+
+    if (!resetToken) return res.status(400).json({ message: "Reset token is required" });
+    if (!newPassword || !confirmPassword) {
+      return res.status(400).json({ message: "New password and confirm password are required" });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: "New password must be at least 6 characters" });
+    }
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ message: "New password and confirm password do not match" });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
+    } catch {
+      return res.status(401).json({ message: "Reset session expired. Verify security questions again." });
+    }
+
+    if (!decoded?.id || decoded?.purpose !== "admin-forgot-password-reset") {
+      return res.status(401).json({ message: "Invalid reset token" });
+    }
+
+    const user = await User.findOne({ _id: decoded.id, role: "admin" });
+    if (!user) {
+      return res.status(404).json({ message: "Admin account not found" });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    res.json({ message: "Password reset successful. Please login with your new password." });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ----------------------
+// Admin: change own password
+// ----------------------
+router.put("/admin/password", protect, authorizeRoles("admin"), async (req, res) => {
+  try {
+    const currentPassword = String(req.body?.currentPassword || "").trim();
+    const newPassword = String(req.body?.newPassword || "").trim();
+    const confirmPassword = String(req.body?.confirmPassword || "").trim();
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({ message: "Current password, new password, and confirm password are required" });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: "New password must be at least 6 characters" });
+    }
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ message: "New password and confirm password do not match" });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user.password) {
+      return res.status(400).json({ message: "This account uses OTP login and has no password set" });
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Current password is incorrect" });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    res.json({ message: "Password updated successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.post("/admin/security/verify-password", protect, authorizeRoles("admin"), async (req, res) => {
+  try {
+    const password = String(req.body?.password || "").trim();
+    if (!password) return res.status(400).json({ message: "Password is required" });
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user.password) {
+      return res.status(400).json({ message: "This account does not have a password set" });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(401).json({ message: "Invalid password" });
+
+    res.json({
+      message: "Access verified",
+      isPrimaryAdmin: isPrimaryAdminEmail(user.email),
+      primaryAdminEmail: PRIMARY_ADMIN_EMAIL,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.get("/admin/security-questions", protect, authorizeRoles("admin"), async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select("adminSecurityQuestions");
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const questions = Array.isArray(user.adminSecurityQuestions)
+      ? user.adminSecurityQuestions
+          .map((item) => String(item?.question || "").trim())
+          .filter(Boolean)
+      : [];
+
+    res.json({
+      questions,
+      total: questions.length,
+      configured: questions.length === 3,
+      options: ADMIN_SECURITY_QUESTION_OPTIONS,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.put("/admin/security-questions", protect, authorizeRoles("admin"), async (req, res) => {
+  try {
+    const securityQuestions = Array.isArray(req.body?.securityQuestions)
+      ? req.body.securityQuestions
+      : [];
+
+    if (securityQuestions.length !== 3) {
+      return res.status(400).json({ message: "Exactly 3 security questions are required" });
+    }
+
+    const seenQuestions = new Set();
+    const normalizedItems = [];
+
+    for (const item of securityQuestions) {
+      const question = String(item?.question || "").trim();
+      const answer = String(item?.answer || "").trim();
+
+      if (!question || !answer) {
+        return res.status(400).json({ message: "Each security question must have a question and answer" });
+      }
+      if (!ADMIN_SECURITY_QUESTION_OPTIONS.includes(question)) {
+        return res.status(400).json({ message: "Invalid security question selected" });
+      }
+      const questionKey = question.toLowerCase();
+      if (seenQuestions.has(questionKey)) {
+        return res.status(400).json({ message: "Security questions must be unique" });
+      }
+      if (answer.length < 2 || answer.length > 200) {
+        return res.status(400).json({ message: "Each answer must be between 2 and 200 characters" });
+      }
+
+      seenQuestions.add(questionKey);
+      normalizedItems.push({
+        question,
+        answerHash: await bcrypt.hash(answer, 10),
+        updatedAt: new Date(),
+      });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.adminSecurityQuestions = normalizedItems;
+    await user.save();
+
+    res.json({
+      message: "Security questions updated successfully",
+      questions: normalizedItems.map((item) => item.question),
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.post("/admin/email-change/request-old", protect, authorizeRoles("admin"), async (req, res) => {
+  try {
+    if (!isPrimaryAdminEmail(req.user?.email)) {
+      return res.status(403).json({ message: "Only primary admin can change the primary email" });
+    }
+
+    const currentEmail = normalizeEmail(req.body?.currentEmail || req.user?.email);
+    const newEmail = normalizeEmail(req.body?.newEmail);
+    if (!currentEmail || !newEmail) {
+      return res.status(400).json({ message: "Current email and new email are required" });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (normalizeEmail(user.email) !== currentEmail) {
+      return res.status(400).json({ message: "Current email does not match your account" });
+    }
+
+    const existing = await User.findOne({ email: newEmail, _id: { $ne: user._id } });
+    if (existing) return res.status(400).json({ message: "New email already exists" });
+
+    const otp = await createAdminOtp({
+      email: currentEmail,
+      destination: currentEmail,
+      purpose: "admin-email-change-old",
+      meta: { newEmail },
+    });
+
+    const sendResult = await sendAdminEmailOtp({
+      to: currentEmail,
+      otp,
+      subject: "Verify your admin email change",
+      messagePrefix: "Your verification code for admin email change is",
+    });
+
+    if (sendResult?.success === false) {
+      return res.json({
+        message: `OTP generated locally because email delivery failed: ${sendResult.error || "Mail provider rejected the request"}`,
+        mailStatusCode: sendResult.statusCode || null,
+        devOtp: otp,
+      });
+    }
+
+    res.json({ message: "OTP sent to current email", ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.post("/admin/email-change/verify-old", protect, authorizeRoles("admin"), async (req, res) => {
+  try {
+    if (!isPrimaryAdminEmail(req.user?.email)) {
+      return res.status(403).json({ message: "Only primary admin can change the primary email" });
+    }
+
+    const currentEmail = normalizeEmail(req.body?.currentEmail || req.user?.email);
+    const newEmail = normalizeEmail(req.body?.newEmail);
+    const otp = String(req.body?.otp || "").trim();
+    if (!currentEmail || !newEmail || !otp) {
+      return res.status(400).json({ message: "Current email, new email, and OTP are required" });
+    }
+
+    const verification = await verifyAdminOtp({
+      email: currentEmail,
+      destination: currentEmail,
+      purpose: "admin-email-change-old",
+      otp,
+    });
+    if (!verification.ok) return res.status(401).json({ message: verification.message });
+
+    const pendingNewEmail = normalizeEmail(verification.otpDoc.meta?.newEmail);
+    if (pendingNewEmail !== newEmail) {
+      return res.status(400).json({ message: "New email does not match the pending request" });
+    }
+
+    const newOtp = await createAdminOtp({
+      email: currentEmail,
+      destination: newEmail,
+      purpose: "admin-email-change-new",
+      meta: { currentEmail },
+    });
+
+    const sendResult = await sendAdminEmailOtp({
+      to: newEmail,
+      otp: newOtp,
+      subject: "Verify your new admin email",
+      messagePrefix: "Your verification code for the new admin email is",
+    });
+
+    if (sendResult?.success === false) {
+      return res.json({
+        message: `Old email verified. New email OTP generated locally because email delivery failed: ${sendResult.error || "Mail provider rejected the request"}`,
+        mailStatusCode: sendResult.statusCode || null,
+        devOtp: newOtp,
+      });
+    }
+
+    res.json({ message: "Old email verified. OTP sent to new email.", ...(process.env.NODE_ENV !== "production" && { devOtp: newOtp }) });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.post("/admin/email-change/verify-new", protect, authorizeRoles("admin"), async (req, res) => {
+  try {
+    if (!isPrimaryAdminEmail(req.user?.email)) {
+      return res.status(403).json({ message: "Only primary admin can change the primary email" });
+    }
+
+    const currentEmail = normalizeEmail(req.body?.currentEmail || req.user?.email);
+    const newEmail = normalizeEmail(req.body?.newEmail);
+    const otp = String(req.body?.otp || "").trim();
+    if (!currentEmail || !newEmail || !otp) {
+      return res.status(400).json({ message: "Current email, new email, and OTP are required" });
+    }
+
+    const verification = await verifyAdminOtp({
+      email: currentEmail,
+      destination: newEmail,
+      purpose: "admin-email-change-new",
+      otp,
+    });
+    if (!verification.ok) return res.status(401).json({ message: verification.message });
+
+    if (normalizeEmail(verification.otpDoc.meta?.currentEmail) !== currentEmail) {
+      return res.status(400).json({ message: "Email change request expired or mismatched" });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const existing = await User.findOne({ email: newEmail, _id: { $ne: user._id } });
+    if (existing) return res.status(400).json({ message: "New email already exists" });
+
+    user.email = newEmail;
+    await user.save();
+
+    await AdminOtp.deleteMany({
+      $or: [
+        { email: currentEmail, purpose: "admin-email-change-old" },
+        { email: currentEmail, purpose: "admin-email-change-new" },
+      ],
+    });
+
+    res.json({ message: "Email changed successfully", email: user.email });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ----------------------
+// Admin: add/list/remove admins
+// ----------------------
+router.get("/admin/users", protect, authorizeRoles("admin"), async (req, res) => {
+  try {
+    const admins = await User.find({ role: "admin" })
+      .select("-password")
+      .sort({ createdAt: -1 });
+    res.json({ total: admins.length, admins, primaryAdminEmail: PRIMARY_ADMIN_EMAIL });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.post("/admin/users", protect, authorizeRoles("admin"), async (req, res) => {
+  try {
+    if (!isPrimaryAdminEmail(req.user?.email)) {
+      return res.status(403).json({ message: "Only primary admin can add new admin users" });
+    }
+
+    const name = String(req.body?.name || "").trim();
+    const email = normalizeEmail(req.body?.email);
+    const phone = normalizePhone(req.body?.phone);
+    const password = String(req.body?.password || "").trim();
+
+    if (!name || !email || !phone || !password) {
+      return res.status(400).json({ message: "Name, email, phone, and password are required" });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters" });
+    }
+
+    const existingEmail = await User.findOne({ email });
+    if (existingEmail) return res.status(400).json({ message: "Email already exists" });
+
+    const existingPhone = await User.findOne({ phone });
+    if (existingPhone) return res.status(400).json({ message: "Phone already exists" });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const admin = await User.create({
+      name,
+      email,
+      phone,
+      password: hashedPassword,
+      role: "admin",
+      isVerified: true,
+    });
+
+    res.status(201).json({
+      message: "Admin created successfully",
+      admin: stripPassword(admin),
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.delete("/admin/users/:userId", protect, authorizeRoles("admin"), async (req, res) => {
+  try {
+    if (!isPrimaryAdminEmail(req.user?.email)) {
+      return res.status(403).json({ message: "Only primary admin can remove admin users" });
+    }
+
+    const { userId } = req.params;
+    if (String(req.user?._id) === String(userId)) {
+      return res.status(400).json({ message: "You cannot remove your own admin account" });
+    }
+
+    const admin = await User.findById(userId);
+    if (!admin) return res.status(404).json({ message: "Admin not found" });
+    if (admin.role !== "admin") {
+      return res.status(400).json({ message: "Selected user is not an admin" });
+    }
+    if (isPrimaryAdminEmail(admin.email)) {
+      return res.status(400).json({ message: "Primary admin account cannot be removed" });
+    }
+
+    await User.deleteOne({ _id: admin._id });
+    res.json({ message: "Admin removed successfully" });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });

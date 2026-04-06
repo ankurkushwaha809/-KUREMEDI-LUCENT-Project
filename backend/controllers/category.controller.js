@@ -1,4 +1,5 @@
 import Category from "../model/Category.js";
+import { uploadImageToCloudinary } from "../utils/cloudinaryUpload.js";
 
 // --------------------
 // CREATE CATEGORY
@@ -20,10 +21,14 @@ export const createCategory = async (req, res) => {
         .json({ success: false, message: "Category already exists" });
     }
 
+    const image = req.file
+      ? await uploadImageToCloudinary(req.file, { folder: "lucent/categories" })
+      : null;
+
     const category = await Category.create({
       name: name.trim(),
       description,
-      image: req.file ? req.file.path : null,
+      image,
     });
 
     res.status(201).json({
@@ -80,7 +85,9 @@ export const updateCategory = async (req, res) => {
 
     // ✅ new image uploaded
     if (req.file) {
-      category.image = req.file.path;
+      category.image = await uploadImageToCloudinary(req.file, {
+        folder: "lucent/categories",
+      });
     }
 
     await category.save();

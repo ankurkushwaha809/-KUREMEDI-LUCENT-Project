@@ -19,7 +19,12 @@ if (!email) {
 
 async function setAdmin() {
   try {
-    await mongoose.connect(process.env.MONGO_URI);
+    const options = {};
+    if (process.env.MONGO_DB_NAME) {
+      options.dbName = process.env.MONGO_DB_NAME;
+    }
+
+    await mongoose.connect(process.env.MONGO_URI, options);
     const user = await User.findOne({ email: email.trim().toLowerCase() });
     if (!user) {
       console.error("No user found with email:", email);

@@ -1,17 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { X, Plus, Trash2 } from "lucide-react";
 import { useContextApi } from "../hooks/useContextApi";
-
-let rawBase = import.meta.env.VITE_BASE_URL || "https://api.kuremedi.com/api";
-rawBase = rawBase.trim();
-rawBase = rawBase.replace("https:/.kuremedi.com", "https://api.kuremedi.com");
-const IMAGE_BASE_URL = rawBase.replace(/\/api\/?$/, "").replace(/\/$/, "");
+import { resolveUploadUrl } from "../lib/baseUrl";
 
 const getProductImageUrl = (path) => {
     if (!path) return "";
-    if (path.startsWith("blob:") || path.startsWith("http")) return path;
-    const p = String(path).replace(/\\/g, "/").replace(/^\//, "");
-    return `${IMAGE_BASE_URL}/${p}`;
+    if (path.startsWith("blob:") || path.startsWith("http") || path.startsWith("data:")) return path;
+    return resolveUploadUrl(path);
 };
 
 const AddProductModal = ({ onClose, onSuccess, productId, product }) => {

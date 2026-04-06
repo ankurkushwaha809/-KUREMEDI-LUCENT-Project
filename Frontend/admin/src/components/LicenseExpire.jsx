@@ -1,10 +1,9 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useContextApi } from "../hooks/useContextApi";
+import { resolveUploadUrl } from "../lib/baseUrl";
 
-const UPLOAD_BASE = "https://api.kuremedi.com";
-const fileUrl = (file) =>
-  file ? `${UPLOAD_BASE}/uploads/${String(file).replace(/^\/+/, "").replace(/\\/g, "/")}` : null;
+const fileUrl = (file) => (file ? resolveUploadUrl(`uploads/${String(file).replace(/^\/+/, "")}`) : null);
 
 function LicenseExpire() {
   const { getAllUsers, updateKYCStatus } = useContextApi();

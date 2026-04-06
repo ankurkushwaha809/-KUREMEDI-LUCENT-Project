@@ -253,6 +253,10 @@ export default function ProductDetailPage() {
                     src={imageList[activeImage] || "https://placehold.co/700?text=No+Image"}
                     alt={product.name}
                     className="max-h-96 w-full object-contain transition-transform duration-300 hover:scale-[1.03]"
+                    onError={(event) => {
+                      event.currentTarget.onerror = null;
+                      event.currentTarget.src = "https://placehold.co/700?text=No+Image";
+                    }}
                   />
                 </div>
               </div>
@@ -265,7 +269,15 @@ export default function ProductDetailPage() {
                       onClick={() => setActiveImage(index)}
                       className={`shrink-0 rounded-2xl border bg-white p-2 transition ${activeImage === index ? "border-blue-500 shadow-md" : "border-slate-200 hover:border-slate-300"}`}
                     >
-                      <img src={img} alt="thumb" className="h-16 w-16 object-contain" />
+                      <img
+                        src={img}
+                        alt="thumb"
+                        className="h-16 w-16 object-contain"
+                        onError={(event) => {
+                          event.currentTarget.onerror = null;
+                          event.currentTarget.src = "https://placehold.co/120?text=No+Image";
+                        }}
+                      />
                     </button>
                   ))}
                 </div>

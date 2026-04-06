@@ -1,12 +1,9 @@
 import { useState } from "react";
 import axios from "axios";
 import { ContextApi } from "./contextApi";
+import { ADMIN_API_BASE_URL, ADMIN_UPLOAD_BASE_URL } from "../lib/baseUrl";
 
-// Normalize admin API base URL. Fix common typos like `https:/.kuremedi.com/api`.
-let rawBase = import.meta.env.VITE_BASE_URL || "https://api.kuremedi.com/api";
-rawBase = rawBase.trim();
-rawBase = rawBase.replace("https:/.kuremedi.com", "https://api.kuremedi.com");
-const BASE_URL = rawBase.replace(/\/$/, "");
+const BASE_URL = ADMIN_API_BASE_URL;
 
 export const ContextProvider = ({ children }) => {
 
@@ -53,6 +50,48 @@ export const ContextProvider = ({ children }) => {
         error.response?.data || error.message
       );
       throw error; // ✅ rethrow so your login page catches it
+    }
+  };
+
+  const getAdminForgotSecurityQuestions = async (email) => {
+    try {
+      const response = await axios.post(
+        `${BASE_URL}/auth/admin/forgot-password/questions`,
+        { email },
+        { headers: { "Content-Type": "application/json" } }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error loading admin forgot-password questions:", error?.response?.data || error);
+      throw error;
+    }
+  };
+
+  const verifyAdminForgotSecurityAnswers = async ({ email, securityQuestions }) => {
+    try {
+      const response = await axios.post(
+        `${BASE_URL}/auth/admin/forgot-password/verify-security-answers`,
+        { email, securityQuestions },
+        { headers: { "Content-Type": "application/json" } }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error verifying admin security answers:", error?.response?.data || error);
+      throw error;
+    }
+  };
+
+  const resetAdminForgotPassword = async ({ resetToken, newPassword, confirmPassword }) => {
+    try {
+      const response = await axios.post(
+        `${BASE_URL}/auth/admin/forgot-password/reset`,
+        { resetToken, newPassword, confirmPassword },
+        { headers: { "Content-Type": "application/json" } }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error resetting admin password via forgot-password flow:", error?.response?.data || error);
+      throw error;
     }
   };
 
@@ -309,7 +348,7 @@ export const ContextProvider = ({ children }) => {
 
 
   const getallOrders = async () => {
-    const base = (BASE_URL || "https://api.kuremedi.com").replace(/\/$/, "");
+    const base = BASE_URL.replace(/\/$/, "");
     const url = base.includes("/api") ? `${base}/payment/orders` : `${base}/api/payment/orders`;
     try {
       const res = await axios.get(url);
@@ -321,14 +360,14 @@ export const ContextProvider = ({ children }) => {
   };
 
   const getReferralAmount = async () => {
-    const base = (BASE_URL || "https://api.kuremedi.com").replace(/\/$/, "");
+    const base = BASE_URL.replace(/\/$/, "");
     const url = base.includes("/api") ? `${base}/config/referral-amount` : `${base}/api/config/referral-amount`;
     const res = await axios.get(url);
     return res.data?.amount ?? 50;
   };
 
   const setReferralAmount = async (amount) => {
-    const base = (BASE_URL || "https://api.kuremedi.com").replace(/\/$/, "");
+    const base = BASE_URL.replace(/\/$/, "");
     const url = base.includes("/api") ? `${base}/config/referral-amount` : `${base}/api/config/referral-amount`;
     await axios.put(url, { amount });
     return { success: true };
@@ -512,6 +551,164 @@ export const ContextProvider = ({ children }) => {
       return response.data;
     } catch (error) {
       console.error(" Error fetching users:", error?.response?.data || error);
+      throw error;
+    }
+  };
+
+  const changeAdminPassword = async ({ currentPassword, newPassword, confirmPassword }) => {
+    try {
+      const response = await axios.put(
+        `${BASE_URL}/auth/admin/password`,
+        { currentPassword, newPassword, confirmPassword },
+        { headers: { ...getAuthHeaders(), "Content-Type": "application/json" } }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error changing admin password:", error?.response?.data || error);
+      throw error;
+    }
+  };
+
+  const verifyAdminSecurityPassword = async (password) => {
+    try {
+      const response = await axios.post(
+        `${BASE_URL}/auth/admin/security/verify-password`,
+        { password },
+        { headers: { ...getAuthHeaders(), "Content-Type": "application/json" } }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error verifying admin security password:", error?.response?.data || error);
+      throw error;
+    }
+  };
+
+  const getAdminSecurityQuestions = async () => {
+    try {
+      const response = await axios.get(`${BASE_URL}/auth/admin/security-questions`, {
+        headers: getAuthHeaders(),
+      });
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error loading admin security questions:", error?.response?.data || error);
+      throw error;
+    }
+  };
+
+  const updateAdminSecurityQuestions = async (securityQuestions) => {
+    try {
+      const response = await axios.put(
+        `${BASE_URL}/auth/admin/security-questions`,
+        { securityQuestions },
+        { headers: { ...getAuthHeaders(), "Content-Type": "application/json" } }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error updating admin security questions:", error?.response?.data || error);
+      throw error;
+    }
+  };
+
+  const requestAdminEmailChangeOldOtp = async ({ currentEmail, newEmail }) => {
+    try {
+      const response = await axios.post(
+        `${BASE_URL}/auth/admin/email-change/request-old`,
+        { currentEmail, newEmail },
+        { headers: { ...getAuthHeaders(), "Content-Type": "application/json" } }
+      );
+      return response.data;
+    } catch (error) {
+      console.error(
+        "❌ Error requesting current email OTP:",
+        error?.response?.data?.message || error?.message || "Unknown error",
+        error?.response?.data || error
+      );
+      throw error;
+    }
+  };
+
+  const verifyAdminEmailChangeOldOtp = async ({ currentEmail, newEmail, otp }) => {
+    try {
+      const response = await axios.post(
+        `${BASE_URL}/auth/admin/email-change/verify-old`,
+        { currentEmail, newEmail, otp },
+        { headers: { ...getAuthHeaders(), "Content-Type": "application/json" } }
+      );
+      return response.data;
+    } catch (error) {
+      console.error(
+        "❌ Error verifying current email OTP:",
+        error?.response?.data?.message || error?.message || "Unknown error",
+        error?.response?.data || error
+      );
+      throw error;
+    }
+  };
+
+  const verifyAdminEmailChangeNewOtp = async ({ currentEmail, newEmail, otp }) => {
+    try {
+      const response = await axios.post(
+        `${BASE_URL}/auth/admin/email-change/verify-new`,
+        { currentEmail, newEmail, otp },
+        { headers: { ...getAuthHeaders(), "Content-Type": "application/json" } }
+      );
+      return response.data;
+    } catch (error) {
+      console.error(
+        "❌ Error verifying new email OTP:",
+        error?.response?.data?.message || error?.message || "Unknown error",
+        error?.response?.data || error
+      );
+      throw error;
+    }
+  };
+
+  const getMyProfile = async () => {
+    try {
+      const response = await axios.get(`${BASE_URL}/auth/me`, {
+        headers: getAuthHeaders(),
+      });
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error fetching my profile:", error?.response?.data || error);
+      throw error;
+    }
+  };
+
+  const getAdminUsers = async () => {
+    try {
+      const response = await axios.get(`${BASE_URL}/auth/admin/users`, {
+        headers: getAuthHeaders(),
+      });
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error fetching admin users:", error?.response?.data || error);
+      throw error;
+    }
+  };
+
+  const createAdminUser = async ({ name, email, phone, password }) => {
+    try {
+      const response = await axios.post(
+        `${BASE_URL}/auth/admin/users`,
+        { name, email, phone, password },
+        { headers: { ...getAuthHeaders(), "Content-Type": "application/json" } }
+      );
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error creating admin user:", error?.response?.data || error);
+      throw error;
+    }
+  };
+
+  const deleteAdminUser = async (userId) => {
+    try {
+      const response = await axios.delete(`${BASE_URL}/auth/admin/users/${userId}`, {
+        headers: getAuthHeaders(),
+      });
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error deleting admin user:", error?.response?.data || error);
       throw error;
     }
   };
@@ -744,7 +941,7 @@ export const ContextProvider = ({ children }) => {
     }
   };
 
-  const getUploadBaseUrl = () => "https://api.kuremedi.com";
+  const getUploadBaseUrl = () => ADMIN_UPLOAD_BASE_URL;
 
   const getMarketingBanners = async () => {
     try {
@@ -953,6 +1150,9 @@ export const ContextProvider = ({ children }) => {
         getBlogById,
         getProducts,
         loginuser,
+        getAdminForgotSecurityQuestions,
+        verifyAdminForgotSecurityAnswers,
+        resetAdminForgotPassword,
         updateProduct,
         addBlog,
         getProductsById,
@@ -961,6 +1161,7 @@ export const ContextProvider = ({ children }) => {
         getOrderById,
         updateKYCStatus,
         updateBlog, getAllUsers, deleteUser, blockUser, getDeletedUsersHistory, kycStatusUpdate, updateUserKYCStatus,
+        changeAdminPassword, verifyAdminSecurityPassword, getAdminSecurityQuestions, updateAdminSecurityQuestions, requestAdminEmailChangeOldOtp, verifyAdminEmailChangeOldOtp, verifyAdminEmailChangeNewOtp, getMyProfile, getAdminUsers, createAdminUser, deleteAdminUser,
         deleteBlog, fetchblogCategories, addblogCategory, updateblogCategory, deleteblogCategory, enquiries, addEnquiry, updateEnquiry, deleteEnquiry, fetchEnquiries, user, login, getallOrders, createProducts, createProductWithFormData, updateProductWithFormData, updateProducts, deleteProducts, bulkImportProducts, deletesubcategory, createsubcategory, updatesubcategory, updateOrderStatus, getAllEnquiries, logout, activeTab, setActiveTab, GetSubCategoryData, GetCategoryData, AddCategoryData, createCategoryWithFormData, updateCategoryWithFormData, uploadImage, UpdateCategoryData, DeleteCategory, getBrands, createBrand, createBrandWithFormData, updateBrand, updateBrandWithFormData, deleteBrand, getReferralAmount, setReferralAmount, getReferralRewards, setReferralRewards,
         getAgents, getAgentById, createAgent, updateAgent, deleteAgent, updateAgentKycStatus, getUploadBaseUrl, getReferralsTracking, reprocessReferralReward,
         getMarketingBanners, createMarketingBanner, updateMarketingBanner, deleteMarketingBanner,

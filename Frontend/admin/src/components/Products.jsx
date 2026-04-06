@@ -17,19 +17,13 @@ import {
   ChevronRight
 } from "lucide-react";
 import { useContextApi } from "../hooks/useContextApi";
-
-let rawBase = import.meta.env.VITE_BASE_URL || "https://api.kuremedi.com/api";
-rawBase = rawBase.trim();
-rawBase = rawBase.replace("https:/.kuremedi.com", "https://api.kuremedi.com");
-const IMAGE_BASE_URL = rawBase.replace(/\/api\/?$/, "").replace(/\/$/, "");
+import { resolveUploadUrl } from "../lib/baseUrl";
 
 const getProductImageUrl = (p) => {
   const imgs = p?.productImages || p?.images || [];
   const first = Array.isArray(imgs) ? imgs[0] : null;
   if (!first) return null;
-  if (typeof first === "string" && (first.startsWith("http") || first.startsWith("blob:"))) return first;
-  const path = String(first).replace(/\\/g, "/").replace(/^\//, "");
-  return `${IMAGE_BASE_URL}/${path}`;
+  return resolveUploadUrl(first);
 };
 
 const getProductDisplayName = (p) => {

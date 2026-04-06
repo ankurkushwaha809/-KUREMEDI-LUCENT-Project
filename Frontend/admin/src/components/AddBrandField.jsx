@@ -2,15 +2,11 @@ import React from "react";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-
-const IMAGE_BASE_URL = "https://api.kuremedi.com";
+import { resolveUploadUrl } from "../lib/baseUrl";
 
 const getLogoPreviewUrl = (formData) => {
     if (formData.logoFile) return URL.createObjectURL(formData.logoFile);
-    if (formData.logo) {
-        const p = String(formData.logo).replace(/\\/g, "/").replace(/^\//, "");
-        return p.startsWith("http") ? p : `${IMAGE_BASE_URL}/${p}`;
-    }
+    if (formData.logo) return resolveUploadUrl(formData.logo);
     return null;
 };
 

@@ -63,18 +63,12 @@ app.get("/", (req, res) => {
 
 // Product Routes
 app.use("/api/products", productRoutes);
-const uploadsDir = path.join(__dirname, "uploads");
-app.use("/uploads", express.static(uploadsDir));
-app.get("/uploads/*filePath", (req, res) => {
-  // const fallbackBase = process.env.UPLOAD_FALLBACK_BASE || "https://api.kuremedi.com";
-  const fallbackBase = process.env.UPLOAD_FALLBACK_BASE ;
-  // Avoid redirect loops if fallback is accidentally set to local host.
-  if (/localhost|127\.0\.0\.1/.test(fallbackBase)) {
-    return res.status(404).json({ message: "File not found" });
-  }
-  const cleanBase = String(fallbackBase).replace(/\/+$/, "");
-  return res.redirect(`${cleanBase}${req.originalUrl}`);
-});
+const uploadsDirFromWorkspace = path.resolve(process.cwd(), "uploads");
+const uploadsDirFromBackend = path.join(__dirname, "uploads");
+app.use("/uploads", express.static(uploadsDirFromWorkspace));
+if (uploadsDirFromBackend !== uploadsDirFromWorkspace) {
+  app.use("/uploads", express.static(uploadsDirFromBackend));
+}
 app.use("/api/auth", authRoutes);
 
 app.use("/api/categories", categoriesRouter);

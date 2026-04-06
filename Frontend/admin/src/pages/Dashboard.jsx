@@ -55,17 +55,35 @@ import LowStockAlerts from "../components/LowStockAlerts";
 const SIDEBAR_WIDTH = 288; // 18rem = 288px (w-72)
 
 const Dashboard = () => {
-  const { activeTab, setActiveTab } = useContextApi();
+  const { activeTab, setActiveTab, getMyProfile } = useContextApi();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchParams] = useSearchParams();
+  const [isPrimaryAdmin, setIsPrimaryAdmin] = useState(false);
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const profile = await getMyProfile();
+        const email = String(profile?.email || "").trim().toLowerCase();
+        setIsPrimaryAdmin(email === "ankurkushwaha237@gmail.com");
+      } catch {
+        setIsPrimaryAdmin(false);
+      }
+    };
+    loadProfile();
+  }, [getMyProfile]);
 
   // Sync URL -> activeTab on mount
   useEffect(() => {
     const tabFromUrl = searchParams.get("tab");
     if (tabFromUrl) {
-      setActiveTab(tabFromUrl);
+      if (tabFromUrl === "Admin Security" && !isPrimaryAdmin) {
+        setActiveTab("General Settings");
+      } else {
+        setActiveTab(tabFromUrl);
+      }
     }
-  }, [searchParams, setActiveTab]);
+  }, [searchParams, setActiveTab, isPrimaryAdmin]);
 
   const renderPage = () => {
     switch (activeTab) {
@@ -159,7 +177,9 @@ const Dashboard = () => {
       case "Traffic Reports":
         return <Traffic />;
       case "General Settings":
-        return <SettingsPage />;
+        return <SystemConfig />;
+      case "Admin Security":
+        return isPrimaryAdmin ? <SettingsPage /> : <PlaceholderPage title="Access Denied" />;
       case "Delivered Orders":
         return <DeliveredOrders />;
       case "Order Detail":

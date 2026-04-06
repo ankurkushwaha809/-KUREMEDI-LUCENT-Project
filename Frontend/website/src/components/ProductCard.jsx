@@ -47,6 +47,10 @@ export const ProductCard = ({
             src={imageUrl || "https://placehold.co/200x150?text=No+Image"}
             alt={product.productName || product.name}
             className="max-h-full max-w-full object-contain"
+            onError={(event) => {
+              event.currentTarget.onerror = null;
+              event.currentTarget.src = "https://placehold.co/200x150?text=No+Image";
+            }}
           />
         </div>
       </Link>

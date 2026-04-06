@@ -18,18 +18,12 @@ import {
 import { useContextApi } from "../hooks/useContextApi";
 import AddBrandField from "./AddBrandField";
 import AddBrand from "./AddBrand";
-
-let rawBase = import.meta.env.VITE_BASE_URL || "https://api.kuremedi.com/api";
-rawBase = rawBase.trim();
-rawBase = rawBase.replace("https:/.kuremedi.com", "https://api.kuremedi.com");
-const IMAGE_BASE_URL = rawBase.replace(/\/api\/?$/, "").replace(/\/$/, "");
+import { resolveUploadUrl } from "../lib/baseUrl";
 
 const getBrandLogoUrl = (item) => {
     const logo = item?.logo || item?.image;
     if (!logo) return null;
-    if (typeof logo === "string" && (logo.startsWith("http") || logo.startsWith("blob:"))) return logo;
-    const p = String(logo).replace(/\\/g, "/").replace(/^\//, "");
-    return `${IMAGE_BASE_URL}/${p}`;
+    return resolveUploadUrl(logo);
 };
 
 export default function Brands() {

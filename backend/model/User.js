@@ -66,6 +66,14 @@ const userSchema = new mongoose.Schema(
     },
     kycRejectionReason: { type: String, trim: true, default: "" },
 
+    adminSecurityQuestions: [
+      {
+        question: { type: String, trim: true },
+        answerHash: { type: String, required: true, select: false },
+        updatedAt: { type: Date, default: Date.now },
+      },
+    ],
+
     role: { type: String, enum: ["user", "vendor", "admin", "agent"], default: "user" },
     isVerified: { type: Boolean, default: false },
     isBlocked: { type: Boolean, default: false },

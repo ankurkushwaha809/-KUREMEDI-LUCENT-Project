@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Download, ImagePlus, Plus, Trash2 } from "lucide-react";
 import { useContextApi } from "../../hooks/useContextApi";
 import toast from "react-hot-toast";
+import { resolveUploadUrl } from "../../lib/baseUrl";
 
 const Campaigns = () => {
   const [activeTab, setActiveTab] = useState("Banners");
@@ -32,15 +33,9 @@ const Campaigns = () => {
     getProducts,
   } = useContextApi();
 
-  const uploadBase = useMemo(() => {
-    const raw = (import.meta.env.VITE_BASE_URL || "https://api.kuremedi.com/api").trim();
-    return raw.replace(/\/api\/?$/, "").replace(/\/$/, "");
-  }, []);
-
   const getBannerImageUrl = (path) => {
     if (!path) return "";
-    if (String(path).startsWith("http")) return path;
-    return `${uploadBase}/${String(path).replace(/^\/+/, "").replace(/\\/g, "/")}`;
+    return resolveUploadUrl(path);
   };
 
   const loadBanners = async () => {

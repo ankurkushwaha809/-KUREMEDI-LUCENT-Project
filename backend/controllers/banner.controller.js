@@ -1,4 +1,5 @@
 import Banner from "../model/Banner.js";
+import { uploadImageToCloudinary } from "../utils/cloudinaryUpload.js";
 
 const parseBool = (value, defaultValue) => {
   if (value === undefined || value === null || value === "") return defaultValue;
@@ -70,9 +71,13 @@ export const createBanner = async (req, res) => {
       return res.status(400).json({ success: false, message: "Banner image is required" });
     }
 
+    const image = await uploadImageToCloudinary(req.file, {
+      folder: "lucent/banners",
+    });
+
     const banner = await Banner.create({
       name: String(name).trim(),
-      image: req.file.path,
+      image,
       isActive: parseBool(isActive, true),
       redirectUrl: sanitizeRedirectUrl(redirectUrl) ?? "",
       ctaText: sanitizeCtaText(ctaText),
@@ -129,7 +134,9 @@ export const updateBanner = async (req, res) => {
       banner.buttonColor = sanitizeColor(buttonColor, banner.buttonColor || "#0f172a");
     }
     if (req.file?.path) {
-      banner.image = req.file.path;
+      banner.image = await uploadImageToCloudinary(req.file, {
+        folder: "lucent/banners",
+      });
     }
 
     await banner.save();
