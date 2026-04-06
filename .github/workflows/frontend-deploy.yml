@@ -22,23 +22,21 @@ jobs:
         script: |
           cd /home/ubuntu
 
-          # Clone if not exists
           if [ ! -d "-KUREMEDI-LUCENT-Project" ]; then
             git clone https://github.com/ankurkushwaha809/-KUREMEDI-LUCENT-Project.git
           fi
 
           cd -KUREMEDI-LUCENT-Project
-
           git pull origin main
 
-          # -------- WEBSITE (Next.js) --------
-          cd website
+          # ✅ WEBSITE FIX (IMPORTANT)
+          cd Frontend/website
           npm install
           npm run build
           pm2 restart website || pm2 start npm --name website -- start
 
-          # -------- ADMIN (Vite React) --------
-          cd ../Frontend/admin
+          # ✅ ADMIN (already correct)
+          cd ../admin
           npm install
           npm run build
           pm2 restart admin || pm2 start serve --name admin -- -s dist -l 5173
