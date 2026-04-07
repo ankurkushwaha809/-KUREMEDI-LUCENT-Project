@@ -13,31 +13,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Deploy Frontend
+      - name: Deploy frontend
         uses: appleboy/ssh-action@v0.1.6
         with:
           host: ${{ secrets.EC2_FRONTEND_HOST }}
           username: ${{ secrets.EC2_FRONTEND_USER }}
           key: ${{ secrets.EC2_FRONTEND_KEY }}
           script: |
-
             cd -- /home/ubuntu/-KUREMEDI-LUCENT-Project
             git pull origin main
 
-            ################ ADMIN (VITE) ################
+            echo "Building admin..."
             cd Frontend/admin
             npm install
             npm run build
 
-            rm -rf /var/www/admin/*
-            mkdir -p /var/www/admin
-            cp -r dist/* /var/www/admin/
-
-            ################ WEBSITE (NEXT) ################
+            echo "Building website..."
             cd ../website
             npm install
             npm run build
 
-            pm2 restart website || pm2 start npm --name website -- start
-
+            pm2 restart website
+            pm2 restart admin
             pm2 save
