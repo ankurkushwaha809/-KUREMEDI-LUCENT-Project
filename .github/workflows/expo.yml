@@ -8,32 +8,31 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+    defaults:
+      run:
+        working-directory: Frontend/app
 
-      - name: Setup Node
-        uses: actions/setup-node@v3
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
         with:
           node-version: 18
 
       - name: Install Expo
         run: npm install -g expo-cli
 
-      - name: Install dependencies
-        run: |
-          cd Frontend/app
-          npm install
+      - name: Install deps
+        run: npm install
 
-      - name: Build APK
+      - name: Build Android
         run: |
-          cd Frontend/app
           npx expo prebuild --platform android
           cd android
           ./gradlew assembleRelease
 
       - name: Upload APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: app
+          name: app-release
           path: Frontend/app/android/app/build/outputs/apk/release/app-release.apk
