@@ -14,6 +14,7 @@ function buildRemotePatterns() {
   const candidates = [
     process.env.NEXT_PUBLIC_UPLOAD_BASE,
     process.env.NEXT_PUBLIC_API_URL,
+    'http://65.1.65.146:5000',
     'http://localhost:5000',
     'http://127.0.0.1:5000',
   ];

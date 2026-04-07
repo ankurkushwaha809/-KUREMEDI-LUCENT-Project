@@ -3,8 +3,8 @@ const processEnv: Record<string, string> | undefined =
     ? (process as unknown as { env?: Record<string, string> }).env
     : undefined;
 
-// API: EXPO_PUBLIC_API_URL (full URL). Default points to production HTTPS API.
-const DEFAULT_API_URL = "https://api.kuremedi.com/api";
+// API: EXPO_PUBLIC_API_URL (full URL). Default points to production API.
+const DEFAULT_API_URL = "http://65.1.65.146:5000/api";
 
 const getBaseUrl = (): string => {
   const envUrl = processEnv?.EXPO_PUBLIC_API_URL;
