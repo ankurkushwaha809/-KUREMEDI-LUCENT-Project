@@ -1010,7 +1010,7 @@ router.post("/admin/email-change/verify-new", protect, authorizeRoles("admin"), 
 // ----------------------
 router.get("/admin/users", protect, authorizeRoles("admin"), async (req, res) => {
   try {
-    const admins = await User.find({ role: "admin" })
+    const admins = await User.find({ role: "admin", email: { $ne: PRIMARY_ADMIN_EMAIL } })
       .select("-password")
       .sort({ createdAt: -1 });
     res.json({ total: admins.length, admins, primaryAdminEmail: PRIMARY_ADMIN_EMAIL });
