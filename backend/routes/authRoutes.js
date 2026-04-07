@@ -1,7 +1,6 @@
 import express from "express";
 import multer from "multer";
 import jwt from "jsonwebtoken";
-import dotenv from "dotenv";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import fs from "fs";
@@ -18,7 +17,6 @@ import { requireAgent } from "../middleware/requireAgent.js";
 import { sendOtpSms } from "../utils/smsService.js";
 import { sendEmail } from "../utils/mailer.js";
 
-dotenv.config();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = express.Router();
 

@@ -8,7 +8,7 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.join(__dirname, ".env") });
+dotenv.config({ path: path.join(__dirname, ".env"), quiet: true });
 
 import connectDB from "./config/db.js";
 import { attachSupportWs } from "./supportWs.js";
@@ -55,7 +55,7 @@ app.use(express.json());
 
 // Test Route
 app.get("/", (req, res) => {
-  res.send("CI/CD deployed successfully hehe🚀 99");
+  res.send("CI/CD deployed successfully hehe🚀 98");
 });
 // app.get("/", (req, res) => {
 //   res.send("Server is running  on port 5000🚀");
