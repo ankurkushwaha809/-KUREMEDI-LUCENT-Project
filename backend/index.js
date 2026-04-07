@@ -55,7 +55,7 @@ app.use(express.json());
 
 // Test Route
 app.get("/", (req, res) => {
-  res.send("CI/CD deployed successfully hehe🚀 00");
+  res.send("CI/CD deployed successfully hehe🚀w 00");
 });
 // app.get("/", (req, res) => {
 //   res.send("Server is running  on port 5000🚀");
