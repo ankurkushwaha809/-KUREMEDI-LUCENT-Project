@@ -27,6 +27,8 @@ jobs:
             cd Frontend/admin
             npm install
             npm run build
+            sudo rm -rf /var/www/admin/*
+            sudo cp -r dist/* /var/www/admin/
 
             echo "Building website..."
             cd ../website
@@ -34,5 +36,4 @@ jobs:
             npm run build
 
             pm2 restart website
-            pm2 restart admin
             pm2 save
