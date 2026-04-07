@@ -1,9 +1,15 @@
 {
-  "cli": { "version": ">= 16.32.0", "appVersionSource": "remote" },
+  "cli": {
+    "version": ">= 16.32.0",
+    "appVersionSource": "remote"
+  },
   "build": {
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
         "NODE_VERSION": "20",
         "NPM_CONFIG_LEGACY_PEER_DEPS": "1",
@@ -12,6 +18,9 @@
     },
     "preview": {
       "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
         "NODE_VERSION": "20",
         "NPM_CONFIG_LEGACY_PEER_DEPS": "1",
@@ -19,11 +28,10 @@
       }
     },
     "production": {
+      "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
       },
-      "autoIncrement": true,
-
       "env": {
         "NODE_VERSION": "20",
         "NPM_CONFIG_LEGACY_PEER_DEPS": "1",
