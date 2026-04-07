@@ -42,7 +42,6 @@ const supportTicketSchema = new mongoose.Schema(
 
 supportTicketSchema.index({ user: 1, createdAt: -1 });
 supportTicketSchema.index({ status: 1 });
-supportTicketSchema.index({ ticketNo: 1 });
 
 const SupportTicket = mongoose.model("SupportTicket", supportTicketSchema);
 export default SupportTicket;
