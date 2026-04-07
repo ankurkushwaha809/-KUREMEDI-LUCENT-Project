@@ -1,0 +1,37 @@
+name: Build Expo APK
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install Expo
+        run: npm install -g expo-cli
+
+      - name: Install deps
+        run: |
+          cd Frontend/app
+          npm install
+
+      - name: Build APK
+        run: |
+          cd Frontend/app
+          npx expo prebuild --platform android
+          cd android
+          ./gradlew assembleRelease
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: app
+          path: Frontend/app/android/app/build/outputs/apk/release/app-release.apk
