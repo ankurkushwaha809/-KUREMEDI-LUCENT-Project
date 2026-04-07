@@ -1,4 +1,4 @@
-name: Deploy Frontend (Next + Admin)
+name: Deploy Frontend to EC2
 
 on:
   push:
@@ -10,58 +10,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Deploy to EC2
-      uses: appleboy/ssh-action@v0.1.6
-      with:
-        host: ${{ secrets.FRONTEND_EC2_HOST }}
-        username: ${{ secrets.FRONTEND_EC2_USER }}
-        key: ${{ secrets.FRONTEND_EC2_KEY }}
-        script: |
-          set -e   # ❗ STOP if any error
+      - name: Checkout
+        uses: actions/checkout@v3
 
-          cd /home/ubuntu
+      - name: Deploy Frontend
+        uses: appleboy/ssh-action@v0.1.6
+        with:
+          host: ${{ secrets.EC2_FRONTEND_HOST }}
+          username: ${{ secrets.EC2_FRONTEND_USER }}
+          key: ${{ secrets.EC2_FRONTEND_KEY }}
+          script: |
 
-          # Clone if not exists
-          if [ ! -d "-KUREMEDI-LUCENT-Project" ]; then
-            git clone https://github.com/ankurkushwaha809/-KUREMEDI-LUCENT-Project.git
-          fi
+            cd -- /home/ubuntu/-KUREMEDI-LUCENT-Project
+            git pull origin main
 
-          cd -KUREMEDI-LUCENT-Project
+            ################ ADMIN (VITE) ################
+            cd Frontend/admin
+            npm install
+            npm run build
 
-          echo "🔥 Resetting repo..."
-          git fetch origin
-          git reset --hard origin/main
-          git clean -fd
+            rm -rf /var/www/admin/*
+            mkdir -p /var/www/admin
+            cp -r dist/* /var/www/admin/
 
-          echo "📦 Latest commit:"
-          git log -1
+            ################ WEBSITE (NEXT) ################
+            cd ../website
+            npm install
+            npm run build
 
-          # ---------------- WEBSITE ----------------
-          echo "🚀 Deploying Website..."
-          cd Frontend/website
+            pm2 restart website || pm2 start npm --name website -- start
 
-          rm -rf .next
-          rm -rf node_modules
-
-          npm install
-          npm run build
-
-          pm2 delete website || true
-          pm2 start npm --name website -- start
-
-          # ---------------- ADMIN ----------------
-          echo "🚀 Deploying Admin..."
-          cd ../admin
-
-          rm -rf dist
-          rm -rf node_modules
-
-          npm install
-          npm run build
-
-          pm2 delete admin || true
-          pm2 start serve --name admin -- -s dist -l 5173
-
-          pm2 save
-
-          echo "✅ Deployment Done"
+            pm2 save
