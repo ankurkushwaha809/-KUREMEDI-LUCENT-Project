@@ -88,7 +88,7 @@ export default function Header() {
                             <button className="hidden md:flex items-center gap-2 border-l border-gray-300 pl-6 text-left">
                                 <span className="text-base">⚡</span>
                                 <span>
-                                    <span className="block text-xs text-black font-semibold">Shiprocket Delivery 83</span>
+                                    <span className="block text-xs text-black font-semibold">Shiprocket Delivery 99</span>
                                     {/* <span className="inline-flex items-center gap-1 text-sm font-semibold text-gray-900">
                                         Select Pincode <ChevronDown className="h-4 w-4" />
                                     </span> */}
