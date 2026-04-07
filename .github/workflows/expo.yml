@@ -13,22 +13,26 @@ jobs:
         working-directory: Frontend/app
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 18
 
       - name: Install deps
         run: npm install
 
-      - name: Install Expo + EAS
-        run: npm install -g expo-cli eas-cli
+      - name: Install EAS
+        run: npm install -g eas-cli
 
       - name: Expo login
-        run: eas login --non-interactive
+        run: eas whoami
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Build APK
+      - name: Build
         run: eas build -p android --profile preview --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
