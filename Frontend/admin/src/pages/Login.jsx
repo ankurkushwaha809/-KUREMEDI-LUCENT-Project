@@ -168,7 +168,7 @@ const AdminLogin = () => {
 
         {/* Logo / Title */}
         <h1 className="text-2xl font-bold text-center text-gray-800 mb-2">
-          Admin Panel
+          Admin Panel 99
         </h1>
         <p className="text-center text-gray-600 text-sm mb-6">
           Sign in to continue
