@@ -16,6 +16,18 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npx expo start
    ```
 
+   For physical-device testing with Expo Go, use:
+
+   ```bash
+   npm run start:go:tunnel
+   ```
+
+   If tunnel is slow or blocked on your network, use LAN instead (phone and laptop must be on same Wi-Fi):
+
+   ```bash
+   npm run start:go:lan
+   ```
+
 In the output, you'll find options to open the app in a
 
 - [development build](https://docs.expo.dev/develop/development-builds/introduction/)
