@@ -18,20 +18,20 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        working-directory: Frontend/app
+        working-directory: Frontend/app/app
         run: npm install
 
-      - name: Install EAS CLI
+      - name: Install EAS
         run: npm install -g eas-cli
 
       - name: Expo whoami
-        working-directory: Frontend/app
+        working-directory: Frontend/app/app
         run: eas whoami
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
       - name: Build APK
-        working-directory: Frontend/app
+        working-directory: Frontend/app/app
         run: eas build -p android --profile preview --non-interactive
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
