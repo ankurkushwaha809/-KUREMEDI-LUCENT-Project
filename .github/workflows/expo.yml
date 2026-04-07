@@ -8,31 +8,30 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: Frontend/app
-
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
       - name: Install dependencies
+        working-directory: Frontend/app
         run: npm install
 
       - name: Install EAS CLI
         run: npm install -g eas-cli
 
-      - name: Verify login
+      - name: Expo whoami
+        working-directory: Frontend/app
         run: eas whoami
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
       - name: Build APK
+        working-directory: Frontend/app
         run: eas build -p android --profile preview --non-interactive
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
