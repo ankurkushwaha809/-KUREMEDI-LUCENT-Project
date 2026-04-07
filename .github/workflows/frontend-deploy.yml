@@ -34,9 +34,9 @@ jobs:
             cd ../website
             npm install
             npm run build
-            npx next export
 
-            sudo rm -rf /var/www/html/*
-            sudo cp -r out/* /var/www/html/
+            pm2 delete website || true
+            pm2 start npm --name "website" -- start
+            pm2 save
 
             sudo systemctl restart nginx
