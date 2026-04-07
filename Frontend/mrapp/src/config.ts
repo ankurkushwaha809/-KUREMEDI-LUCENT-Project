@@ -4,7 +4,7 @@ const processEnv: Record<string, string> | undefined =
     : undefined;
 
 // API: EXPO_PUBLIC_API_URL (full URL). Default points to production API.
-const DEFAULT_API_URL = "http://65.1.65.146:5000/api";
+const DEFAULT_API_URL = "http://13.206.82.189:5000/api";
 
 const getBaseUrl = (): string => {
   const envUrl = processEnv?.EXPO_PUBLIC_API_URL;
