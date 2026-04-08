@@ -648,10 +648,10 @@ export const verifyPayment = async (req, res) => {
       });
     }
 
-    if (!["authorized", "captured"].includes(paymentStatus)) {
-      return res.status(400).json({
-        message: "Payment is not in a valid state",
-        code: "PAYMENT_NOT_AUTHORIZED",
+    if (paymentStatus !== "captured") {
+      return res.status(409).json({
+        message: "Payment is not captured yet",
+        code: "PAYMENT_NOT_CAPTURED_YET",
       });
     }
 
@@ -732,7 +732,7 @@ export const getPaymentStatus = async (req, res) => {
     const payments = Array.isArray(gateway?.data?.items) ? gateway.data.items : [];
     const paidPayment = payments.find((p) => {
       const s = String(p?.status || "").toLowerCase();
-      return s === "captured" || s === "authorized";
+      return s === "captured";
     });
 
     if (paidPayment?.id) {

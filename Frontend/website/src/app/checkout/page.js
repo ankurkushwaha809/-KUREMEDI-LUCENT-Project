@@ -28,6 +28,20 @@ const unlockPageScroll = () => {
 };
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const QR_POLL_INTERVAL_MS = 3000;
+const QR_POLL_TIMEOUT_MS = 10 * 60 * 1000;
+
+const clearClientCartStorage = () => {
+  if (typeof window === "undefined") return;
+  const cartKeys = ["cart", "cartItems", "checkoutCart", "lucent_cart", "guest_cart"];
+  for (const key of cartKeys) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // Ignore localStorage cleanup issues and rely on API/state refresh.
+    }
+  }
+};
 
 const toPaise = (value) => Math.round((Number(value) || 0) * 100);
 const formatCurrency = (value) =>
@@ -72,6 +86,7 @@ export default function CheckoutPage() {
   const [paymentModal, setPaymentModal] = useState(null);
   const [minimumCheckoutAmount, setMinimumCheckoutAmount] = useState(0);
   const syncingPurchasedItemsRef = useRef(false);
+  const completedRazorpayOrdersRef = useRef(new Set());
   const [newAddr, setNewAddr] = useState({
     address: "",
     city: "",
@@ -365,7 +380,7 @@ export default function CheckoutPage() {
       const purchasedSync = await removeRecentlyPurchasedItemsFromCart();
       if (purchasedSync.changed && purchasedSync.latestCount === 0) {
         showToast("Your purchased items were removed from cart.", "success");
-        router.push("/orders");
+        router.push("/order-success");
         return;
       }
 
@@ -401,9 +416,10 @@ export default function CheckoutPage() {
       }
 
       if (res?.paidByWallet) {
+        clearClientCartStorage();
         await refreshCart();
         showToast("Order placed successfully using wallet!", "success");
-        router.push("/orders");
+        router.push("/order-success");
         return;
       }
 
@@ -465,6 +481,12 @@ export default function CheckoutPage() {
       return;
     }
 
+    const orderKey = String(paymentModal.razorpayOrderId || "");
+    if (!orderKey || completedRazorpayOrdersRef.current.has(orderKey)) {
+      return;
+    }
+    completedRazorpayOrdersRef.current.add(orderKey);
+
     setVerifyingPayment(true);
     const verificationPayload = {
       razorpayOrderId: paymentModal.razorpayOrderId,
@@ -483,6 +505,7 @@ export default function CheckoutPage() {
 
       console.log("Payment verification successful:", verifyRes);
 
+      clearClientCartStorage();
       try {
         await api.clearCart();
       } catch (clearErr) {
@@ -498,9 +521,9 @@ export default function CheckoutPage() {
 
       showToast("Payment successful! Order placed.", "success");
 
-      // Redirect to orders page
-      router.replace("/orders");
+      router.replace("/order-success");
     } catch (err) {
+      completedRazorpayOrdersRef.current.delete(orderKey);
       console.error("Payment verification failed:", err);
 
       unlockPageScroll();
@@ -512,9 +535,16 @@ export default function CheckoutPage() {
     }
   };
 
-  const handlePolledPaymentSuccess = async () => {
+  const handlePolledPaymentSuccess = async (razorpayOrderId) => {
+    const orderKey = String(razorpayOrderId || paymentModal?.razorpayOrderId || "");
+    if (!orderKey || completedRazorpayOrdersRef.current.has(orderKey)) {
+      return;
+    }
+    completedRazorpayOrdersRef.current.add(orderKey);
+
     setVerifyingPayment(true);
     try {
+      clearClientCartStorage();
       try {
         await api.clearCart();
       } catch {
@@ -526,8 +556,9 @@ export default function CheckoutPage() {
       setPaymentModal(null);
       setVerifyingPayment(false);
       showToast("Payment successful! Order placed.", "success");
-      router.replace("/orders");
+      router.replace("/order-success");
     } catch (err) {
+      completedRazorpayOrdersRef.current.delete(orderKey);
       unlockPageScroll();
       setPaymentModal(null);
       setVerifyingPayment(false);
@@ -857,8 +888,31 @@ export default function CheckoutPage() {
           paymentModal={paymentModal}
           onSuccess={handleRazorpaySuccess}
           onPaid={handlePolledPaymentSuccess}
-          onClose={() => {
+          onClose={(reason) => {
             unlockPageScroll();
+
+            if (reason === "manual-dismiss") {
+              showToast(
+                "Payment window closed. We will keep checking payment status in background for up to 10 minutes.",
+                "info",
+              );
+              return;
+            }
+
+            if (reason === "poll-timeout") {
+              showToast(
+                "Payment confirmation timed out after 10 minutes. If amount was debited, check Orders shortly.",
+                "error",
+              );
+            }
+
+            if (reason === "poll-error") {
+              showToast(
+                "We could not confirm payment automatically. If amount was debited, check Orders in a minute.",
+                "error",
+              );
+            }
+
             setPaymentModal(null);
             setVerifyingPayment(false);
           }}
@@ -866,7 +920,7 @@ export default function CheckoutPage() {
       )}
 
       {verifyingPayment && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-[2px] px-4">
+        <div className="fixed inset-0 z-70 flex items-center justify-center bg-black/40 backdrop-blur-[2px] px-4">
           <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
             <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-teal-700 border-t-transparent" />
             <p className="text-lg font-bold text-gray-900">Verifying payment</p>
@@ -893,10 +947,12 @@ function RazorpayModal({ paymentModal, onSuccess, onPaid, onClose }) {
     let razorpayInstance = null;
     let paymentCompleted = false;
     let successHandled = false;
+    let userDismissed = false;
     let pollTimer = null;
     let pollInFlight = false;
     let pollFailures = 0;
     let pollAttempts = 0;
+    const pollStartAt = Date.now();
     if (!paymentModal || !window.Razorpay) return;
 
     const stopPolling = () => {
@@ -910,6 +966,14 @@ function RazorpayModal({ paymentModal, onSuccess, onPaid, onClose }) {
       stopPolling();
       pollTimer = setInterval(async () => {
         if (pollInFlight || paymentCompleted) return;
+
+        if (Date.now() - pollStartAt >= QR_POLL_TIMEOUT_MS) {
+          stopPolling();
+          try { razorpayInstance?.close?.(); } catch (_) {}
+          onCloseRef.current?.("poll-timeout");
+          return;
+        }
+
         pollInFlight = true;
         try {
           pollAttempts += 1;
@@ -919,7 +983,7 @@ function RazorpayModal({ paymentModal, onSuccess, onPaid, onClose }) {
             paymentCompleted = true;
             stopPolling();
             try { razorpayInstance?.close?.(); } catch (_) {}
-            onPaidRef.current?.();
+            onPaidRef.current?.(paymentModal.razorpayOrderId);
             return;
           }
 
@@ -935,16 +999,12 @@ function RazorpayModal({ paymentModal, onSuccess, onPaid, onClose }) {
           if (pollFailures >= 4) {
             stopPolling();
             try { razorpayInstance?.close?.(); } catch (_) {}
-            showToast(
-              "We could not confirm payment automatically. If amount was debited, check Orders in 1 minute.",
-              "error",
-            );
-            onCloseRef.current?.();
+            onCloseRef.current?.("poll-error");
           }
         } finally {
           pollInFlight = false;
         }
-      }, 3000);
+      }, QR_POLL_INTERVAL_MS);
     };
 
     const options = {
@@ -979,12 +1039,12 @@ function RazorpayModal({ paymentModal, onSuccess, onPaid, onClose }) {
       },
       modal: {
         ondismiss: () => {
-          stopPolling();
           if (paymentCompleted) {
             return;
           }
+          userDismissed = true;
           console.warn("Payment modal dismissed by user");
-          onCloseRef.current?.();
+          onCloseRef.current?.("manual-dismiss");
         },
       },
     };
@@ -1018,7 +1078,9 @@ function RazorpayModal({ paymentModal, onSuccess, onPaid, onClose }) {
       startPolling();
       return () => {
         stopPolling();
-        try { razorpayInstance?.close?.(); } catch (_) {}
+        if (!userDismissed) {
+          try { razorpayInstance?.close?.(); } catch (_) {}
+        }
       };
     } catch (err) {
       console.error("Razorpay initialization error:", err);

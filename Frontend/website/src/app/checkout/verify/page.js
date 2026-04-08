@@ -9,6 +9,18 @@ import { showToast } from "@/utils/toast";
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const clearClientCartStorage = () => {
+  if (typeof window === "undefined") return;
+  const cartKeys = ["cart", "cartItems", "checkoutCart", "lucent_cart", "guest_cart"];
+  for (const key of cartKeys) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // Ignore local storage cleanup errors.
+    }
+  }
+};
+
 async function verifyWithRetry(payload, maxAttempts = 3) {
   let lastErr;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -85,6 +97,7 @@ function CheckoutVerifyContent() {
           3,
         );
 
+        clearClientCartStorage();
         try {
           await api.clearCart();
         } catch {
@@ -94,7 +107,7 @@ function CheckoutVerifyContent() {
         await refreshCart();
         showToast("Payment successful! Order placed.", "success");
         setStatus("success");
-        router.replace("/orders");
+        router.replace("/order-success");
       } catch (err) {
         const msg = err?.data?.message || err?.response?.data?.message || err?.message || "Payment verification failed";
         setStatus("failed");
