@@ -369,6 +369,16 @@ export const createPaymentOrder = async (req, res) => {
       });
     }
 
+    if (razorpayAmountPaise < 100) {
+      await Order.findByIdAndDelete(order._id);
+      return res.status(400).json({
+        message: "Minimum online payable amount is ₹1.00",
+        code: "RAZORPAY_MIN_AMOUNT_NOT_MET",
+        minAmountRupee: 1,
+        requestedAmountPaise: razorpayAmountPaise,
+      });
+    }
+
     // Create Razorpay order using SDK
     let razorpayOrder;
     try {
@@ -390,20 +400,26 @@ export const createPaymentOrder = async (req, res) => {
       });
     } catch (sdkErr) {
       await Order.findByIdAndDelete(order._id);
-      const errorMsg = sdkErr?.description || sdkErr?.message || "Failed to create Razorpay order";
+      const gatewayDescription = sdkErr?.error?.description || sdkErr?.description;
+      const errorMsg = gatewayDescription || sdkErr?.message || "Failed to create Razorpay order";
       
       console.error("Razorpay SDK order creation failed:", {
         status: sdkErr?.statusCode,
         message: errorMsg,
         amount: razorpayAmountPaise,
         currency: "INR",
-        error: sdkErr,
+        error: sdkErr?.error || sdkErr,
       });
 
+      const isMinAmount = /minimum amount allowed/i.test(errorMsg);
       const isRateLimited = /too many requests|rate limit/i.test(errorMsg);
-      return res.status(isRateLimited ? 429 : 502).json({
+      return res.status(isMinAmount ? 400 : isRateLimited ? 429 : 502).json({
         message: errorMsg,
-        code: isRateLimited ? "RAZORPAY_RATE_LIMIT" : "RAZORPAY_CREATE_ORDER_FAILED",
+        code: isMinAmount
+          ? "RAZORPAY_MIN_AMOUNT_NOT_MET"
+          : isRateLimited
+            ? "RAZORPAY_RATE_LIMIT"
+            : "RAZORPAY_CREATE_ORDER_FAILED",
         retryable: isRateLimited,
       });
     }

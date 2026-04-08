@@ -98,6 +98,12 @@ router.post("/recharge", protect, async (req, res) => {
     }
 
     const amountPaise = amount * 100;
+    if (amountPaise < 100) {
+      return res.status(400).json({
+        message: "Minimum recharge amount is ₹1",
+        code: "RAZORPAY_MIN_AMOUNT_NOT_MET",
+      });
+    }
     const receipt = `RCH${String(req.user._id).slice(-8)}${Date.now().toString().slice(-6)}`.slice(0, 40);
     
     let razorpayOrder;
@@ -118,16 +124,18 @@ router.post("/recharge", protect, async (req, res) => {
         },
       });
     } catch (sdkErr) {
-      const errorMsg = sdkErr?.description || sdkErr?.message || "Failed to create Razorpay order";
+      const gatewayDescription = sdkErr?.error?.description || sdkErr?.description;
+      const errorMsg = gatewayDescription || sdkErr?.message || "Failed to create Razorpay order";
+      const isMinAmount = /minimum amount allowed/i.test(errorMsg);
       console.error("Wallet recharge order creation failed:", {
         status: sdkErr?.statusCode,
         message: errorMsg,
         amount: amountPaise,
-        error: sdkErr,
+        error: sdkErr?.error || sdkErr,
       });
-      return res.status(500).json({ 
+      return res.status(isMinAmount ? 400 : 502).json({ 
         message: errorMsg,
-        code: "RAZORPAY_ORDER_CREATE_FAILED"
+        code: isMinAmount ? "RAZORPAY_MIN_AMOUNT_NOT_MET" : "RAZORPAY_ORDER_CREATE_FAILED"
       });
     }
 
