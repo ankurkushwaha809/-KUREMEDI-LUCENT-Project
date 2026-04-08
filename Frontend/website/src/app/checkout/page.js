@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Script from "next/script";
@@ -26,6 +26,8 @@ const unlockPageScroll = () => {
   document.body.style.width = "";
   document.documentElement.style.overflow = "";
 };
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const toPaise = (value) => Math.round((Number(value) || 0) * 100);
 const formatCurrency = (value) =>
@@ -220,6 +222,34 @@ export default function CheckoutPage() {
     return { changed, latestCount };
   };
 
+  const verifyPaymentWithRetry = async (payload, maxAttempts = 3) => {
+    let lastErr;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        return await api.verifyPayment(payload);
+      } catch (err) {
+        lastErr = err;
+        const code = err?.data?.code || err?.response?.data?.code;
+        const message = String(
+          err?.data?.message || err?.response?.data?.message || err?.message || "",
+        );
+        const status = Number(err?.status || err?.response?.status || 0);
+        const retryable =
+          code === "VERIFY_PAYMENT_FAILED" ||
+          code === "RAZORPAY_VERIFY_FETCH_FAILED" ||
+          status >= 500 ||
+          /network|timeout|failed to fetch|server error/i.test(message);
+
+        if (!retryable || attempt === maxAttempts) {
+          throw err;
+        }
+
+        await wait(700 * attempt);
+      }
+    }
+    throw lastErr;
+  };
+
   const handlePlaceOrder = async () => {
     if (placing || paymentModal || verifyingPayment) {
       return;
@@ -352,18 +382,20 @@ export default function CheckoutPage() {
     }
 
     setVerifyingPayment(true);
-    console.log("Starting payment verification...", {
+    const verificationPayload = {
       razorpayOrderId: paymentModal.razorpayOrderId,
+      razorpayPaymentId: paymentId,
+      razorpaySignature: signature,
+    };
+
+    console.log("Starting payment verification...", {
+      razorpayOrderId: verificationPayload.razorpayOrderId,
       paymentId,
     });
 
     try {
       // Verify payment with backend first, then force-clear the cart state.
-      const verifyRes = await api.verifyPayment({
-        razorpayOrderId: paymentModal.razorpayOrderId,
-        razorpayPaymentId: paymentId,
-        razorpaySignature: signature,
-      });
+      const verifyRes = await verifyPaymentWithRetry(verificationPayload, 3);
 
       console.log("Payment verification successful:", verifyRes);
 
@@ -374,6 +406,7 @@ export default function CheckoutPage() {
       }
 
       await refreshCart();
+      setUseWalletAmount(0);
 
       unlockPageScroll();
       setPaymentModal(null);
@@ -738,9 +771,18 @@ export default function CheckoutPage() {
 }
 
 function RazorpayModal({ paymentModal, onSuccess, onClose }) {
+  const onSuccessRef = useRef(onSuccess);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onSuccessRef.current = onSuccess;
+    onCloseRef.current = onClose;
+  }, [onClose, onSuccess]);
+
   useEffect(() => {
     let razorpayInstance = null;
     let paymentCompleted = false;
+    let successHandled = false;
     if (!paymentModal || !window.Razorpay) return;
     const options = {
       key: paymentModal.keyId,
@@ -760,12 +802,15 @@ function RazorpayModal({ paymentModal, onSuccess, onClose }) {
         emandate: false,
       },
       handler: (response) => {
+        if (successHandled) return;
+        successHandled = true;
         paymentCompleted = true;
         console.log("Payment successful:", {
           paymentId: response.razorpay_payment_id,
           orderId: response.razorpay_order_id,
         });
-        onSuccess(response.razorpay_payment_id, response.razorpay_signature);
+        try { razorpayInstance?.close?.(); } catch (_) {}
+        onSuccessRef.current?.(response.razorpay_payment_id, response.razorpay_signature);
       },
       modal: {
         ondismiss: () => {
@@ -773,7 +818,7 @@ function RazorpayModal({ paymentModal, onSuccess, onClose }) {
             return;
           }
           console.warn("Payment modal dismissed by user");
-          onClose();
+          onCloseRef.current?.();
         },
       },
     };
@@ -795,9 +840,9 @@ function RazorpayModal({ paymentModal, onSuccess, onClose }) {
       };
     } catch (err) {
       console.error("Razorpay initialization error:", err);
-      onClose();
+      onCloseRef.current?.();
     }
-  }, [paymentModal?.razorpayOrderId, paymentModal?.amount, onClose, onSuccess]);
+  }, [paymentModal?.razorpayOrderId, paymentModal?.amount, paymentModal?.keyId]);
 
   return null;
 }
