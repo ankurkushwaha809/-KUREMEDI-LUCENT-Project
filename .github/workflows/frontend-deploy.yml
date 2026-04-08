@@ -32,11 +32,15 @@ jobs:
 
             echo "Building website..."
             cd ../website
-            npm install
+            pm2 delete website || true
+            rm -rf .next
+            npm ci
             npm run build
 
-            pm2 delete website || true
-            pm2 start npm --name "website" -- start
+            test -f .next/BUILD_ID
+            test -f .next/prerender-manifest.json
+
+            pm2 start npm --name "website" --cwd /home/ubuntu/-KUREMEDI-LUCENT-Project/Frontend/website -- start
             pm2 save
 
             sudo systemctl restart nginx
