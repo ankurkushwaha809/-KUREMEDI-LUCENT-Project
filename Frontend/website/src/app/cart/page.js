@@ -40,6 +40,8 @@ export default function CartPage() {
   const deliveryFeePaise = subtotalPaise >= freeDeliveryThresholdPaise ? 0 : toPaise(40);
   const totalPaise = subtotalPaise + deliveryFeePaise;
 
+  const subtotal = subtotalPaise / 100;
+  const deliveryFee = deliveryFeePaise / 100;
   const total = totalPaise / 100;
   const amountToFreeDelivery = Math.max(0, (freeDeliveryThresholdPaise - subtotalPaise) / 100);
   const totalUnits = cartItems?.reduce((acc, item) => acc + (Number(item.qty) || 0), 0) ?? 0;
@@ -113,8 +115,8 @@ export default function CartPage() {
               </p>
             </div>
             <div className="rounded-2xl bg-slate-900 text-white px-4 py-3 min-w-52.5">
-              <p className="text-[11px] uppercase tracking-wider text-slate-300">Current Total</p>
-              <p className="text-2xl font-extrabold mt-0.5">{formatCurrency(total)}</p>
+              <p className="text-[11px] uppercase tracking-wider text-slate-300">Items Total</p>
+              <p className="text-2xl font-extrabold mt-0.5">{formatCurrency(subtotal)}</p>
             </div>
           </div>
         </div>
@@ -213,20 +215,39 @@ export default function CartPage() {
             )}
 
             {cartItems?.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="rounded-2xl border border-teal-100 bg-teal-50 p-4 flex items-center gap-3">
-                  <Truck className="text-teal-700 h-5 w-5" />
-                  <p className="text-sm text-teal-900 font-medium">
-                    {amountToFreeDelivery > 0
-                      ? `Add ${formatCurrency(amountToFreeDelivery)} more for free delivery.`
-                      : "You unlocked free delivery on this order."}
-                  </p>
+              <>
+                <div className="mt-5 space-y-2 rounded-2xl bg-slate-50 p-4 border border-slate-200">
+                  <div className="flex items-center justify-between text-sm text-slate-600">
+                    <span>Items total</span>
+                    <span className="font-semibold text-slate-900">{formatCurrency(subtotal)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm text-slate-600">
+                    <span>Delivery fee</span>
+                    <span className="font-semibold text-slate-900">
+                      {deliveryFee > 0 ? formatCurrency(deliveryFee) : "Free"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-base font-extrabold text-slate-900">
+                    <span>Payable amount</span>
+                    <span>{formatCurrency(total)}</span>
+                  </div>
                 </div>
-                <div className="rounded-2xl border border-teal-100 bg-teal-50 p-4 flex items-center gap-3">
-                  <ShieldCheck className="text-teal-700 h-5 w-5" />
-                  <p className="text-sm text-teal-900 font-medium">Only verified and authentic products.</p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="rounded-2xl border border-teal-100 bg-teal-50 p-4 flex items-center gap-3">
+                    <Truck className="text-teal-700 h-5 w-5" />
+                    <p className="text-sm text-teal-900 font-medium">
+                      {amountToFreeDelivery > 0
+                        ? `Add ${formatCurrency(amountToFreeDelivery)} more for free delivery.`
+                        : "You unlocked free delivery on this order."}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-teal-100 bg-teal-50 p-4 flex items-center gap-3">
+                    <ShieldCheck className="text-teal-700 h-5 w-5" />
+                    <p className="text-sm text-teal-900 font-medium">Only verified and authentic products.</p>
+                  </div>
                 </div>
-              </div>
+              </>
             )}
           </div>
 
