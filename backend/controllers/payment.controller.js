@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import Razorpay from "razorpay";
 import Cart from "../model/Cart.js";
 import Order from "../model/Order.js";
 import Product from "../model/Product.js";
@@ -368,53 +369,60 @@ export const createPaymentOrder = async (req, res) => {
       });
     }
 
-    const razorpayOrderPayload = {
-      amount: razorpayAmountPaise,
-      currency: "INR",
-      receipt: order._id.toString(),
-      notes: {
-        orderId: order._id.toString(),
-        userId: String(req.user._id),
-      },
-    };
+    // Create Razorpay order using SDK
+    let razorpayOrder;
+    try {
+      const razorpayClient = new Razorpay({
+        key_id: RAZORPAY_KEY_ID,
+        key_secret: RAZORPAY_KEY_SECRET,
+      });
 
-    const gatewayRes = await fetch("https://api.razorpay.com/v1/orders", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Basic ${Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64")}`,
-      },
-      body: JSON.stringify(razorpayOrderPayload),
-    });
-
-    const gatewayData = await gatewayRes.json();
-    if (!gatewayRes.ok || !gatewayData?.id) {
-      await Order.findByIdAndDelete(order._id);
-      const gatewayMessage = gatewayData?.error?.description || "Failed to create Razorpay order";
-      const isRateLimited = /too many requests|rate limit/i.test(gatewayMessage);
-      
-      console.error("Razorpay order creation failed:", {
-        status: gatewayRes.status,
-        message: gatewayMessage,
+      razorpayOrder = await razorpayClient.orders.create({
         amount: razorpayAmountPaise,
         currency: "INR",
-        error: gatewayData?.error,
+        receipt: order._id.toString(),
+        notes: {
+          orderId: order._id.toString(),
+          userId: String(req.user._id),
+          totalAmount: payableAmountRupee,
+          walletAmount,
+        },
       });
+    } catch (sdkErr) {
+      await Order.findByIdAndDelete(order._id);
+      const errorMsg = sdkErr?.description || sdkErr?.message || "Failed to create Razorpay order";
       
+      console.error("Razorpay SDK order creation failed:", {
+        status: sdkErr?.statusCode,
+        message: errorMsg,
+        amount: razorpayAmountPaise,
+        currency: "INR",
+        error: sdkErr,
+      });
+
+      const isRateLimited = /too many requests|rate limit/i.test(errorMsg);
       return res.status(isRateLimited ? 429 : 502).json({
-        message: gatewayMessage,
+        message: errorMsg,
         code: isRateLimited ? "RAZORPAY_RATE_LIMIT" : "RAZORPAY_CREATE_ORDER_FAILED",
         retryable: isRateLimited,
       });
     }
 
-    order.razorpayOrderId = gatewayData.id;
+    if (!razorpayOrder?.id) {
+      await Order.findByIdAndDelete(order._id);
+      return res.status(502).json({
+        message: "Razorpay order creation returned invalid response",
+        code: "RAZORPAY_INVALID_RESPONSE",
+      });
+    }
+
+    order.razorpayOrderId = razorpayOrder.id;
     await order.save();
 
     res.status(201).json({
       message: "Order created. Complete payment to confirm.",
       orderId: order._id,
-      razorpayOrderId: gatewayData.id,
+      razorpayOrderId: razorpayOrder.id,
       amount: razorpayAmountRupee,
       walletUsed: walletAmount,
       cartAdjusted,

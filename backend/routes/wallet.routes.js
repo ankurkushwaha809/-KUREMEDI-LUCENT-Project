@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import Razorpay from "razorpay";
 import express from "express";
 import { protect } from "../middleware/protect.js";
 import Recharge from "../model/Recharge.js";
@@ -98,33 +99,54 @@ router.post("/recharge", protect, async (req, res) => {
 
     const amountPaise = amount * 100;
     const receipt = `RCH${String(req.user._id).slice(-8)}${Date.now().toString().slice(-6)}`.slice(0, 40);
-    const response = await fetch("https://api.razorpay.com/v1/orders", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Basic ${Buffer.from(RAZORPAY_KEY_ID + ":" + RAZORPAY_KEY_SECRET).toString("base64")}`,
-      },
-      body: JSON.stringify({
+    
+    let razorpayOrder;
+    try {
+      const razorpayClient = new Razorpay({
+        key_id: RAZORPAY_KEY_ID,
+        key_secret: RAZORPAY_KEY_SECRET,
+      });
+
+      razorpayOrder = await razorpayClient.orders.create({
         amount: amountPaise,
         currency: "INR",
         receipt,
-      }),
-    });
+        notes: {
+          userId: String(req.user._id),
+          amount,
+          type: "wallet_recharge",
+        },
+      });
+    } catch (sdkErr) {
+      const errorMsg = sdkErr?.description || sdkErr?.message || "Failed to create Razorpay order";
+      console.error("Wallet recharge order creation failed:", {
+        status: sdkErr?.statusCode,
+        message: errorMsg,
+        amount: amountPaise,
+        error: sdkErr,
+      });
+      return res.status(500).json({ 
+        message: errorMsg,
+        code: "RAZORPAY_ORDER_CREATE_FAILED"
+      });
+    }
 
-    const data = await response.json();
-    if (!data.id) {
-      return res.status(500).json({ message: data.error?.description || "Failed to create payment order" });
+    if (!razorpayOrder?.id) {
+      return res.status(500).json({ 
+        message: "Invalid Razorpay response",
+        code: "RAZORPAY_INVALID_RESPONSE"
+      });
     }
 
     await Recharge.create({
       user: req.user._id,
       amount,
-      razorpayOrderId: data.id,
+      razorpayOrderId: razorpayOrder.id,
       status: "PENDING",
     });
 
     res.status(201).json({
-      razorpayOrderId: data.id,
+      razorpayOrderId: razorpayOrder.id,
       amount,
       keyId: RAZORPAY_KEY_ID,
     });
