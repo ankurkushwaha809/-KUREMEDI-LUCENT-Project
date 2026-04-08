@@ -1,3 +1,6 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
+
 /** @type {import('next').NextConfig} */
 function toBaseWithoutApi(urlString) {
   if (!urlString || typeof urlString !== 'string') return null;
@@ -9,6 +12,8 @@ function toBaseWithoutApi(urlString) {
     return null;
   }
 }
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function buildRemotePatterns() {
   const candidates = [
@@ -44,6 +49,9 @@ function buildRemotePatterns() {
 }
 
 const nextConfig = {
+  turbopack: {
+    root: __dirname,
+  },
   images: {
     remotePatterns: buildRemotePatterns(),
   },

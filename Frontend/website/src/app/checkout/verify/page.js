@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as api from "@/api";
@@ -35,7 +35,19 @@ async function verifyWithRetry(payload, maxAttempts = 3) {
   throw lastErr;
 }
 
-export default function CheckoutVerifyPage() {
+function VerifyFallback() {
+  return (
+    <main className="min-h-screen grid place-items-center bg-slate-50 px-4">
+      <div className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-xl border border-slate-100">
+        <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-teal-700 border-t-transparent" />
+        <h1 className="text-xl font-bold text-slate-900">Preparing verification</h1>
+        <p className="mt-2 text-sm text-slate-600">Please wait while we initialize the payment confirmation flow.</p>
+      </div>
+    </main>
+  );
+}
+
+function CheckoutVerifyContent() {
   const router = useRouter();
   const params = useSearchParams();
   const { token, refreshCart } = useAppContext();
@@ -119,5 +131,13 @@ export default function CheckoutVerifyPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function CheckoutVerifyPage() {
+  return (
+    <Suspense fallback={<VerifyFallback />}>
+      <CheckoutVerifyContent />
+    </Suspense>
   );
 }
