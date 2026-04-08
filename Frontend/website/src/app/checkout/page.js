@@ -428,6 +428,29 @@ export default function CheckoutPage() {
     }
   };
 
+  const handlePolledPaymentSuccess = async () => {
+    setVerifyingPayment(true);
+    try {
+      try {
+        await api.clearCart();
+      } catch {
+        // Ignore and rely on refresh as fallback.
+      }
+      await refreshCart();
+      setUseWalletAmount(0);
+      unlockPageScroll();
+      setPaymentModal(null);
+      setVerifyingPayment(false);
+      showToast("Payment successful! Order placed.", "success");
+      router.replace("/orders");
+    } catch (err) {
+      unlockPageScroll();
+      setPaymentModal(null);
+      setVerifyingPayment(false);
+      showToast(err?.data?.message || err?.message || "Payment completed but post-processing failed", "error");
+    }
+  };
+
   if (!token) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
@@ -749,6 +772,7 @@ export default function CheckoutPage() {
         <RazorpayModal
           paymentModal={paymentModal}
           onSuccess={handleRazorpaySuccess}
+          onPaid={handlePolledPaymentSuccess}
           onClose={() => {
             unlockPageScroll();
             setPaymentModal(null);
@@ -770,27 +794,59 @@ export default function CheckoutPage() {
   );
 }
 
-function RazorpayModal({ paymentModal, onSuccess, onClose }) {
+function RazorpayModal({ paymentModal, onSuccess, onPaid, onClose }) {
   const onSuccessRef = useRef(onSuccess);
+  const onPaidRef = useRef(onPaid);
   const onCloseRef = useRef(onClose);
 
   useEffect(() => {
     onSuccessRef.current = onSuccess;
+    onPaidRef.current = onPaid;
     onCloseRef.current = onClose;
-  }, [onClose, onSuccess]);
+  }, [onClose, onPaid, onSuccess]);
 
   useEffect(() => {
     let razorpayInstance = null;
     let paymentCompleted = false;
     let successHandled = false;
+    let pollTimer = null;
+    let pollInFlight = false;
     if (!paymentModal || !window.Razorpay) return;
+
+    const stopPolling = () => {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    };
+
+    const startPolling = () => {
+      stopPolling();
+      pollTimer = setInterval(async () => {
+        if (pollInFlight || paymentCompleted) return;
+        pollInFlight = true;
+        try {
+          const data = await api.getPaymentStatus(paymentModal.razorpayOrderId);
+          if (String(data?.status || "").toLowerCase() === "paid") {
+            paymentCompleted = true;
+            stopPolling();
+            try { razorpayInstance?.close?.(); } catch (_) {}
+            onPaidRef.current?.();
+          }
+        } catch {
+          // Ignore intermittent polling errors; next cycle will retry.
+        } finally {
+          pollInFlight = false;
+        }
+      }, 3000);
+    };
+
     const options = {
       key: paymentModal.keyId,
       amount: paymentModal.amount,
       currency: "INR",
       order_id: paymentModal.razorpayOrderId,
-      callback_url: `${window.location.origin}/checkout/verify`,
-      redirect: true,
+      redirect: false,
       name: "Lucent Biotech Pharmacy",
       description: "Order payment",
       prefill: {
@@ -807,6 +863,7 @@ function RazorpayModal({ paymentModal, onSuccess, onClose }) {
         if (successHandled) return;
         successHandled = true;
         paymentCompleted = true;
+        stopPolling();
         console.log("Payment successful:", {
           paymentId: response.razorpay_payment_id,
           orderId: response.razorpay_order_id,
@@ -816,6 +873,7 @@ function RazorpayModal({ paymentModal, onSuccess, onClose }) {
       },
       modal: {
         ondismiss: () => {
+          stopPolling();
           if (paymentCompleted) {
             return;
           }
@@ -828,6 +886,7 @@ function RazorpayModal({ paymentModal, onSuccess, onClose }) {
     try {
       razorpayInstance = new window.Razorpay(options);
       razorpayInstance.on("payment.failed", (response) => {
+        stopPolling();
         console.error("Payment failed:", {
           code: response.error.code,
           description: response.error.description,
@@ -837,11 +896,14 @@ function RazorpayModal({ paymentModal, onSuccess, onClose }) {
         });
       });
       razorpayInstance.open();
+      startPolling();
       return () => {
+        stopPolling();
         try { razorpayInstance?.close?.(); } catch (_) {}
       };
     } catch (err) {
       console.error("Razorpay initialization error:", err);
+      stopPolling();
       onCloseRef.current?.();
     }
   }, [paymentModal?.razorpayOrderId, paymentModal?.amount, paymentModal?.keyId]);

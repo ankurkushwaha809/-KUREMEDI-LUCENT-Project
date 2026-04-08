@@ -48,6 +48,81 @@ async function fetchRazorpayPayment({ keyId, keySecret, paymentId }) {
   return { ok: response.ok, status: response.status, data };
 }
 
+async function fetchRazorpayOrderPayments({ keyId, keySecret, orderId }) {
+  const response = await fetch(`https://api.razorpay.com/v1/orders/${orderId}/payments`, {
+    method: "GET",
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}`,
+    },
+  });
+
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  return { ok: response.ok, status: response.status, data };
+}
+
+async function finalizePaidOrder({ order, userId, paymentId }) {
+  if (!order || order.status !== "PENDING") return order;
+
+  order.status = "PLACED";
+  order.razorpayPaymentId = paymentId;
+  await order.save();
+
+  try {
+    const orderWithUser = await Order.findById(order._id).populate("user", "name email phone");
+    const forShiprocket = mapOrderToShiprocketPayload(orderWithUser);
+    const srRes = await createShiprocketOrder(forShiprocket);
+    const shipmentId =
+      srRes?.shipment_id ?? srRes?.shipments?.[0]?.id ?? srRes?.shipments?.[0]?.shipment_id;
+    if (shipmentId) {
+      order.shiprocketShipmentId = String(shipmentId);
+      await order.save();
+    }
+  } catch (srErr) {
+    console.error("Shiprocket create order (after payment):", srErr.message || srErr);
+  }
+
+  const walletAmount = order.walletAmount ?? 0;
+  if (walletAmount > 0) {
+    const wallet = await Wallet.findOne({ user: userId });
+    if (wallet) {
+      const debitAmount = Math.min(wallet.balance || 0, walletAmount);
+      wallet.balance = Math.max(0, wallet.balance - debitAmount);
+      wallet.transactions.push({
+        amount: -debitAmount,
+        type: "DEBIT",
+        description: "Order payment (split)",
+        order: order._id,
+        balanceAfter: wallet.balance,
+      });
+      await wallet.save();
+    }
+  }
+
+  for (const item of order.items) {
+    const product = item.product;
+    const productId = product?._id || product;
+    if (productId) {
+      await Product.findByIdAndUpdate(productId, {
+        $inc: { stockQuantity: -item.quantity },
+      });
+    }
+  }
+
+  const cart = await Cart.findOne({ user: userId });
+  if (cart) {
+    cart.items = [];
+    await cart.save();
+  }
+
+  return order;
+}
+
 /**
  * CREATE PAYMENT ORDER (Checkout - Online / Wallet / Split)
  * POST /api/payment/create-order
@@ -580,59 +655,11 @@ export const verifyPayment = async (req, res) => {
       });
     }
 
-    order.status = "PLACED";
-    order.razorpayPaymentId = razorpayPaymentId;
-    await order.save();
-
-    // Create Shiprocket order on payment success (shipment_id saved; AWB when admin marks DISPATCHED)
-    try {
-      const orderWithUser = await Order.findById(order._id).populate("user", "name email phone");
-      const forShiprocket = mapOrderToShiprocketPayload(orderWithUser);
-      const srRes = await createShiprocketOrder(forShiprocket);
-      const shipmentId =
-        srRes?.shipment_id ?? srRes?.shipments?.[0]?.id ?? srRes?.shipments?.[0]?.shipment_id;
-      if (shipmentId) {
-        order.shiprocketShipmentId = String(shipmentId);
-        await order.save();
-      }
-    } catch (srErr) {
-      console.error("Shiprocket create order (after payment):", srErr.message || srErr);
-    }
-
-    // Deduct wallet if split payment (wallet + Razorpay)
-    const walletAmount = order.walletAmount ?? 0;
-    if (walletAmount > 0) {
-      const wallet = await Wallet.findOne({ user: req.user._id });
-      if (wallet) {
-        const debitAmount = Math.min(wallet.balance || 0, walletAmount);
-        wallet.balance = Math.max(0, wallet.balance - debitAmount);
-        wallet.transactions.push({
-          amount: -debitAmount,
-          type: "DEBIT",
-          description: "Order payment (split)",
-          order: order._id,
-          balanceAfter: wallet.balance,
-        });
-        await wallet.save();
-      }
-    }
-
-    // Reduce stock
-    for (const item of order.items) {
-      const product = item.product;
-      if (product?._id) {
-        await Product.findByIdAndUpdate(product._id, {
-          $inc: { stockQuantity: -item.quantity },
-        });
-      }
-    }
-
-    // Clear cart
-    const cart = await Cart.findOne({ user: req.user._id });
-    if (cart) {
-      cart.items = [];
-      await cart.save();
-    }
+    await finalizePaidOrder({
+      order,
+      userId: req.user._id,
+      paymentId: razorpayPaymentId,
+    });
 
     res.json({
       message: "Payment verified. Order confirmed.",
@@ -641,6 +668,85 @@ export const verifyPayment = async (req, res) => {
   } catch (err) {
     console.error("verifyPayment:", err);
     res.status(500).json({ message: "Server error", code: "VERIFY_PAYMENT_FAILED" });
+  }
+};
+
+/**
+ * GET PAYMENT STATUS
+ * GET /api/payment/status/:razorpayOrderId
+ * Returns: { status: "paid" | "pending", orderStatus }
+ */
+export const getPaymentStatus = async (req, res) => {
+  try {
+    let razorpay;
+    try {
+      razorpay = getValidatedRazorpayConfig();
+    } catch (cfgErr) {
+      return res.status(503).json({
+        message: cfgErr.message || "Payment gateway not configured",
+        code: cfgErr.code || "PAYMENT_GATEWAY_NOT_CONFIGURED",
+      });
+    }
+
+    const RAZORPAY_KEY_ID = razorpay.keyId;
+    const RAZORPAY_KEY_SECRET = razorpay.keySecret;
+    const { razorpayOrderId } = req.params;
+
+    if (!razorpayOrderId) {
+      return res.status(400).json({
+        message: "razorpayOrderId is required",
+        code: "MISSING_ORDER_ID",
+      });
+    }
+
+    const order = await Order.findOne({
+      razorpayOrderId,
+      user: req.user._id,
+    }).populate("items.product");
+
+    if (!order) {
+      return res.status(404).json({
+        message: "Order not found",
+        code: "ORDER_NOT_FOUND",
+      });
+    }
+
+    if (order.status === "PLACED" || order.razorpayPaymentId) {
+      return res.json({ status: "paid", orderStatus: order.status });
+    }
+
+    const gateway = await fetchRazorpayOrderPayments({
+      keyId: RAZORPAY_KEY_ID,
+      keySecret: RAZORPAY_KEY_SECRET,
+      orderId: razorpayOrderId,
+    });
+
+    const payments = Array.isArray(gateway?.data?.items) ? gateway.data.items : [];
+    const paidPayment = payments.find((p) => {
+      const s = String(p?.status || "").toLowerCase();
+      return s === "captured" || s === "authorized";
+    });
+
+    if (paidPayment?.id) {
+      try {
+        await finalizePaidOrder({
+          order,
+          userId: req.user._id,
+          paymentId: String(paidPayment.id),
+        });
+      } catch (finalizeErr) {
+        console.error("getPaymentStatus finalizePaidOrder failed:", finalizeErr);
+      }
+      return res.json({ status: "paid", orderStatus: "PLACED" });
+    }
+
+    return res.json({ status: "pending", orderStatus: order.status });
+  } catch (err) {
+    console.error("getPaymentStatus:", err);
+    return res.status(500).json({
+      message: "Server error",
+      code: "GET_PAYMENT_STATUS_FAILED",
+    });
   }
 };
 

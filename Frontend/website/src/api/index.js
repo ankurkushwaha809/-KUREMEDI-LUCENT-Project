@@ -106,6 +106,9 @@ export const createPaymentOrder = (data) =>
 export const verifyPayment = (data) =>
   apiPost("/payment/verify-payment", data);
 
+export const getPaymentStatus = (razorpayOrderId) =>
+  apiGet(`/payment/status/${encodeURIComponent(String(razorpayOrderId || "").trim())}`);
+
 // --- Support API ---
 
 export const getMySupportTickets = () => apiGet("/support/tickets");

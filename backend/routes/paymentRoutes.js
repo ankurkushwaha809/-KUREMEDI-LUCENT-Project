@@ -4,6 +4,7 @@ import { requireKycApproved } from "../middleware/authorize.js";
 import Order from "../model/Order.js";
 import {
   createPaymentOrder,
+  getPaymentStatus,
   verifyPayment,
   updateOrderStatus,
 } from "../controllers/payment.controller.js";
@@ -147,5 +148,6 @@ router.post("/create-order", protect, requireKycApproved, createPaymentOrder);
  * Body: { razorpayOrderId, razorpayPaymentId, razorpaySignature }
  */
 router.post("/verify-payment", protect, requireKycApproved, verifyPayment);
+router.get("/status/:razorpayOrderId", protect, requireKycApproved, getPaymentStatus);
 
 export default router;
