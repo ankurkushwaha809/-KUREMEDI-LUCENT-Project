@@ -37,6 +37,8 @@ const SECTIONS = [
   },
 ];
 
+const LAST_UPDATED = "09 Apr 2026";
+
 export default function PrivacyPolicyPage() {
   return (
     <div className="min-h-screen bg-gray-50">
@@ -51,7 +53,7 @@ export default function PrivacyPolicyPage() {
 
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Privacy Policy</h1>
         <p className="text-sm text-gray-600 mb-8">
-          Last updated: {new Date().toLocaleDateString('en-IN')}. Kuremedi
+          Last updated: {LAST_UPDATED}. Kuremedi
           respects your privacy. This policy describes how we collect, use, and
           protect your information.
         </p>

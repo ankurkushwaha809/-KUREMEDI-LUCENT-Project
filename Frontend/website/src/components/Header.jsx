@@ -28,6 +28,13 @@ export default function Header() {
         { label: 'Offers', href: '/products?sort=discount' },
     ];
 
+    const formatDateStable = (dateLike) => {
+        if (!dateLike) return 'Recent order';
+        const d = new Date(dateLike);
+        if (Number.isNaN(d.getTime())) return 'Recent order';
+        return d.toISOString().slice(0, 10);
+    };
+
     const loadOrderHistory = useCallback(async () => {
         if (!token) return;
         setOrderHistoryLoading(true);
@@ -168,7 +175,7 @@ export default function Header() {
                                                             </span>
                                                         </div>
                                                         <p className="mt-2 text-xs text-gray-500">
-                                                            {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'Recent order'}
+                                                            {formatDateStable(order.createdAt)}
                                                             {extraCount > 0 ? ` • +${extraCount} more` : ''}
                                                         </p>
                                                     </div>

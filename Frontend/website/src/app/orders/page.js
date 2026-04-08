@@ -16,6 +16,13 @@ const STATUS_STEPS = [
 
 const STATUS_ORDER = ['PENDING', 'PLACED', 'CONFIRMED', 'DISPATCHED', 'DELIVERED', 'CANCELLED'];
 
+function formatDateStable(dateLike) {
+  if (!dateLike) return '';
+  const d = new Date(dateLike);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toISOString().slice(0, 10);
+}
+
 function getStepIndex(status) {
   const s = (status || 'PLACED').toUpperCase();
   if (s === 'CANCELLED') return -1;
@@ -213,7 +220,7 @@ export default function OrdersPage() {
 
             return (
               <div
-                key={item._id || Math.random()}
+                key={item._id || `${item.createdAt || 'order'}-${item.payableAmount || item.totalAmount || 0}`}
                 className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm"
               >
                 <div className="flex justify-between items-start">
@@ -225,7 +232,7 @@ export default function OrdersPage() {
                   </p>
                 </div>
                 <p className="text-xs text-gray-400 mt-1">
-                  {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : ''}
+                  {formatDateStable(item.createdAt)}
                 </p>
 
                 <OrderStatusTimeline status={item.status} />
