@@ -345,22 +345,45 @@ export default function CheckoutPage() {
   };
 
   const handleRazorpaySuccess = async (paymentId, signature) => {
-    if (!paymentModal) return;
-    unlockPageScroll();
-    setPaymentModal(null);
+    if (!paymentModal) {
+      console.warn("Payment successful but paymentModal state is missing");
+      return;
+    }
+
+    console.log("Starting payment verification...", {
+      razorpayOrderId: paymentModal.razorpayOrderId,
+      paymentId,
+    });
+
     try {
-      await api.verifyPayment({
+      // Verify payment with backend BEFORE closing modal
+      const verifyRes = await api.verifyPayment({
         razorpayOrderId: paymentModal.razorpayOrderId,
         razorpayPaymentId: paymentId,
         razorpaySignature: signature,
       });
-      await refreshCart();
-      showToast("Payment successful! Order placed.", "success");
-      router.push("/orders");
-    } catch (err) {
+
+      console.log("Payment verification successful:", verifyRes);
+
+      // Only now close the modal and unlock scroll
       unlockPageScroll();
       setPaymentModal(null);
-      showToast(err?.data?.message || err?.message || "Payment verification failed", "error");
+
+      // Refresh cart and show success
+      await refreshCart();
+      showToast("Payment successful! Order placed.", "success");
+
+      // Redirect to orders page
+      router.push("/orders");
+    } catch (err) {
+      console.error("Payment verification failed:", err);
+
+      // Close modal on error too
+      unlockPageScroll();
+      setPaymentModal(null);
+
+      const errorMsg = err?.data?.message || err?.message || "Payment verification failed";
+      showToast(errorMsg, "error");
     }
   };
 
@@ -697,6 +720,7 @@ export default function CheckoutPage() {
 
 function RazorpayModal({ paymentModal, onSuccess, onClose }) {
   useEffect(() => {
+    let razorpayInstance = null;
     if (!paymentModal || !window.Razorpay) return;
     const options = {
       key: paymentModal.keyId,
@@ -720,6 +744,11 @@ function RazorpayModal({ paymentModal, onSuccess, onClose }) {
           paymentId: response.razorpay_payment_id,
           orderId: response.razorpay_order_id,
         });
+        // Close modal immediately when payment succeeds
+        if (razorpayInstance) {
+          try { razorpayInstance.close?.(); } catch (_) {}
+        }
+        // Then call success handler which will verify and redirect
         onSuccess(response.razorpay_payment_id, response.razorpay_signature);
       },
       modal: {
@@ -731,8 +760,8 @@ function RazorpayModal({ paymentModal, onSuccess, onClose }) {
     };
     
     try {
-      const rzp = new window.Razorpay(options);
-      rzp.on("payment.failed", (response) => {
+      razorpayInstance = new window.Razorpay(options);
+      razorpayInstance.on("payment.failed", (response) => {
         console.error("Payment failed:", {
           code: response.error.code,
           description: response.error.description,
@@ -741,15 +770,15 @@ function RazorpayModal({ paymentModal, onSuccess, onClose }) {
           reason: response.error.reason,
         });
       });
-      rzp.open();
+      razorpayInstance.open();
       return () => {
-        try { rzp.close?.(); } catch (_) {}
+        try { razorpayInstance?.close?.(); } catch (_) {}
       };
     } catch (err) {
       console.error("Razorpay initialization error:", err);
       onClose();
     }
-  }, [paymentModal?.razorpayOrderId]);
+  }, [paymentModal?.razorpayOrderId, paymentModal?.amount]);
 
   return null;
 }
