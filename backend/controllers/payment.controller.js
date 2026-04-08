@@ -14,6 +14,7 @@ import {
   schedulePickup,
 } from "../config/shiprocket.js";
 import { calculateLinePricing } from "../utils/pricing.js";
+import { getValidatedRazorpayConfig } from "../utils/razorpayConfig.js";
 
 const MIN_CHECKOUT_AMOUNT_KEY = "minimumCheckoutAmount";
 
@@ -59,15 +60,17 @@ async function fetchRazorpayPayment({ keyId, keySecret, paymentId }) {
  */
 export const createPaymentOrder = async (req, res) => {
   try {
-    const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
-    const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
-
-    if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
+    let razorpay;
+    try {
+      razorpay = getValidatedRazorpayConfig();
+    } catch (cfgErr) {
       return res.status(503).json({
-        message: "Payment gateway not configured",
-        code: "PAYMENT_GATEWAY_NOT_CONFIGURED",
+        message: cfgErr.message || "Payment gateway not configured",
+        code: cfgErr.code || "PAYMENT_GATEWAY_NOT_CONFIGURED",
       });
     }
+    const RAZORPAY_KEY_ID = razorpay.keyId;
+    const RAZORPAY_KEY_SECRET = razorpay.keySecret;
 
     const { shippingAddress, notes, walletAmount: reqWalletAmount = 0 } = req.body;
 
@@ -418,15 +421,17 @@ export const createPaymentOrder = async (req, res) => {
  */
 export const verifyPayment = async (req, res) => {
   try {
-    const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
-    const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
-
-    if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
+    let razorpay;
+    try {
+      razorpay = getValidatedRazorpayConfig();
+    } catch (cfgErr) {
       return res.status(503).json({
-        message: "Payment gateway not configured",
-        code: "PAYMENT_GATEWAY_NOT_CONFIGURED",
+        message: cfgErr.message || "Payment gateway not configured",
+        code: cfgErr.code || "PAYMENT_GATEWAY_NOT_CONFIGURED",
       });
     }
+    const RAZORPAY_KEY_ID = razorpay.keyId;
+    const RAZORPAY_KEY_SECRET = razorpay.keySecret;
 
     const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
 

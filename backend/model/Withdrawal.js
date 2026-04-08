@@ -17,6 +17,19 @@ const withdrawalSchema = new mongoose.Schema(
     note: { type: String, trim: true },
     adminNote: { type: String, trim: true },
     processedAt: { type: Date },
+    payoutProvider: {
+      type: String,
+      enum: ["MANUAL", "RAZORPAYX"],
+      default: "MANUAL",
+    },
+    payoutId: { type: String, trim: true },
+    payoutStatus: {
+      type: String,
+      enum: ["MANUAL", "PROCESSING", "PROCESSED", "FAILED"],
+      default: "MANUAL",
+    },
+    payoutError: { type: String, trim: true },
+    payoutProcessedAt: { type: Date },
   },
   { timestamps: true }
 );

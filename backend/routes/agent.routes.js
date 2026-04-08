@@ -12,6 +12,10 @@ import Wallet from "../model/Wallet.js";
 import { protect } from "../middleware/protect.js";
 import { authorizeRoles } from "../middleware/authorize.js";
 import { requireAgent } from "../middleware/requireAgent.js";
+import {
+  createAgentWithdrawalPayout,
+  isPayoutAutomationEnabled,
+} from "../utils/razorpayPayout.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = express.Router();
@@ -151,6 +155,36 @@ router.patch(
       withdrawal.status = status;
       if (typeof adminNote === "string") withdrawal.adminNote = adminNote.trim().slice(0, 500);
       withdrawal.processedAt = new Date();
+
+      if (status === "APPROVED" && isPayoutAutomationEnabled()) {
+        const agent = await Agent.findById(withdrawal.agent).lean();
+        if (!agent) {
+          return res.status(404).json({ message: "Linked agent not found for this withdrawal" });
+        }
+
+        const user = agent.user ? await User.findById(agent.user).select("name email phone").lean() : null;
+
+        try {
+          const payout = await createAgentWithdrawalPayout({
+            withdrawal,
+            agent,
+            user,
+          });
+
+          withdrawal.payoutProvider = "RAZORPAYX";
+          withdrawal.payoutId = payout.payoutId;
+          withdrawal.payoutStatus = payout.payoutStatus;
+          withdrawal.payoutError = undefined;
+          if (payout.payoutStatus === "PROCESSED") {
+            withdrawal.payoutProcessedAt = new Date();
+          }
+        } catch (payoutErr) {
+          withdrawal.payoutProvider = "RAZORPAYX";
+          withdrawal.payoutStatus = "FAILED";
+          withdrawal.payoutError = String(payoutErr?.message || "Payout initiation failed").slice(0, 500);
+        }
+      }
+
       await withdrawal.save();
       res.json(withdrawal);
     } catch (err) {

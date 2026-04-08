@@ -3,6 +3,7 @@ import express from "express";
 import { protect } from "../middleware/protect.js";
 import Recharge from "../model/Recharge.js";
 import Wallet from "../model/Wallet.js";
+import { getValidatedRazorpayConfig } from "../utils/razorpayConfig.js";
 
 const router = express.Router();
 
@@ -75,8 +76,17 @@ router.get("/", protect, async (req, res) => {
  */
 router.post("/recharge", protect, async (req, res) => {
   try {
-    const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
-    const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
+    let razorpay;
+    try {
+      razorpay = getValidatedRazorpayConfig();
+    } catch (cfgErr) {
+      return res.status(503).json({
+        message: cfgErr.message || "Payment gateway not configured",
+        code: cfgErr.code || "PAYMENT_GATEWAY_NOT_CONFIGURED",
+      });
+    }
+    const RAZORPAY_KEY_ID = razorpay.keyId;
+    const RAZORPAY_KEY_SECRET = razorpay.keySecret;
 
     const amount = Math.round(Number(req.body.amount) || 0);
     if (amount < 1) {
@@ -84,10 +94,6 @@ router.post("/recharge", protect, async (req, res) => {
     }
     if (amount > 100000) {
       return res.status(400).json({ message: "Maximum recharge amount is ₹1,00,000" });
-    }
-
-    if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
-      return res.status(503).json({ message: "Payment gateway not configured" });
     }
 
     const amountPaise = amount * 100;
@@ -135,12 +141,17 @@ router.post("/recharge", protect, async (req, res) => {
  */
 router.post("/recharge/verify", protect, async (req, res) => {
   try {
-    const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
-    const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
-
-    if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
-      return res.status(503).json({ message: "Payment gateway not configured" });
+    let razorpay;
+    try {
+      razorpay = getValidatedRazorpayConfig();
+    } catch (cfgErr) {
+      return res.status(503).json({
+        message: cfgErr.message || "Payment gateway not configured",
+        code: cfgErr.code || "PAYMENT_GATEWAY_NOT_CONFIGURED",
+      });
     }
+    const RAZORPAY_KEY_ID = razorpay.keyId;
+    const RAZORPAY_KEY_SECRET = razorpay.keySecret;
 
     const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
 
