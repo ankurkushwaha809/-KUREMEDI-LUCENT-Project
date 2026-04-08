@@ -789,6 +789,8 @@ function RazorpayModal({ paymentModal, onSuccess, onClose }) {
       amount: paymentModal.amount,
       currency: "INR",
       order_id: paymentModal.razorpayOrderId,
+      callback_url: `${window.location.origin}/checkout/verify`,
+      redirect: true,
       name: "Lucent Biotech Pharmacy",
       description: "Order payment",
       prefill: {
