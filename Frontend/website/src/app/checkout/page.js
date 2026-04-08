@@ -64,6 +64,7 @@ export default function CheckoutPage() {
   const [showAddAddress, setShowAddAddress] = useState(false);
   const [notes, setNotes] = useState("");
   const [placing, setPlacing] = useState(false);
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   const [useWalletAmount, setUseWalletAmount] = useState(0);
   const [paymentModal, setPaymentModal] = useState(null);
@@ -220,7 +221,7 @@ export default function CheckoutPage() {
   };
 
   const handlePlaceOrder = async () => {
-    if (placing || paymentModal) {
+    if (placing || paymentModal || verifyingPayment) {
       return;
     }
 
@@ -350,13 +351,14 @@ export default function CheckoutPage() {
       return;
     }
 
+    setVerifyingPayment(true);
     console.log("Starting payment verification...", {
       razorpayOrderId: paymentModal.razorpayOrderId,
       paymentId,
     });
 
     try {
-      // Verify payment with backend BEFORE closing modal
+      // Verify payment with backend first, then force-clear the cart state.
       const verifyRes = await api.verifyPayment({
         razorpayOrderId: paymentModal.razorpayOrderId,
         razorpayPaymentId: paymentId,
@@ -365,22 +367,28 @@ export default function CheckoutPage() {
 
       console.log("Payment verification successful:", verifyRes);
 
-      // Only now close the modal and unlock scroll
+      try {
+        await api.clearCart();
+      } catch (clearErr) {
+        console.warn("Cart clear after payment failed, refreshing cart instead:", clearErr);
+      }
+
+      await refreshCart();
+
       unlockPageScroll();
       setPaymentModal(null);
+      setVerifyingPayment(false);
 
-      // Refresh cart and show success
-      await refreshCart();
       showToast("Payment successful! Order placed.", "success");
 
       // Redirect to orders page
-      router.push("/orders");
+      router.replace("/orders");
     } catch (err) {
       console.error("Payment verification failed:", err);
 
-      // Close modal on error too
       unlockPageScroll();
       setPaymentModal(null);
+      setVerifyingPayment(false);
 
       const errorMsg = err?.data?.message || err?.message || "Payment verification failed";
       showToast(errorMsg, "error");
@@ -678,10 +686,10 @@ export default function CheckoutPage() {
 
                   <button
                     onClick={handlePlaceOrder}
-                    disabled={placing || !!paymentModal || !shippingAddress || cartLoading}
+                    disabled={placing || !!paymentModal || verifyingPayment || !shippingAddress || cartLoading}
                     className="w-full bg-teal-700 hover:bg-teal-800 disabled:bg-gray-400 disabled:cursor-not-allowed text-white py-4 rounded-2xl font-bold text-lg shadow-lg shadow-teal-100 flex justify-center items-center gap-2 group transition-all"
                   >
-                    {placing ? "Processing..." : "Place Order"}
+                    {placing || verifyingPayment ? "Processing..." : "Place Order"}
                     <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                   </button>
 
@@ -711,8 +719,19 @@ export default function CheckoutPage() {
           onClose={() => {
             unlockPageScroll();
             setPaymentModal(null);
+            setVerifyingPayment(false);
           }}
         />
+      )}
+
+      {verifyingPayment && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-[2px] px-4">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
+            <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-teal-700 border-t-transparent" />
+            <p className="text-lg font-bold text-gray-900">Verifying payment</p>
+            <p className="mt-2 text-sm text-gray-600">Please wait while we confirm your payment and clear your cart.</p>
+          </div>
+        </div>
       )}
     </>
   );
@@ -721,6 +740,7 @@ export default function CheckoutPage() {
 function RazorpayModal({ paymentModal, onSuccess, onClose }) {
   useEffect(() => {
     let razorpayInstance = null;
+    let paymentCompleted = false;
     if (!paymentModal || !window.Razorpay) return;
     const options = {
       key: paymentModal.keyId,
@@ -740,19 +760,18 @@ function RazorpayModal({ paymentModal, onSuccess, onClose }) {
         emandate: false,
       },
       handler: (response) => {
+        paymentCompleted = true;
         console.log("Payment successful:", {
           paymentId: response.razorpay_payment_id,
           orderId: response.razorpay_order_id,
         });
-        // Close modal immediately when payment succeeds
-        if (razorpayInstance) {
-          try { razorpayInstance.close?.(); } catch (_) {}
-        }
-        // Then call success handler which will verify and redirect
         onSuccess(response.razorpay_payment_id, response.razorpay_signature);
       },
       modal: {
         ondismiss: () => {
+          if (paymentCompleted) {
+            return;
+          }
           console.warn("Payment modal dismissed by user");
           onClose();
         },
@@ -778,7 +797,7 @@ function RazorpayModal({ paymentModal, onSuccess, onClose }) {
       console.error("Razorpay initialization error:", err);
       onClose();
     }
-  }, [paymentModal?.razorpayOrderId, paymentModal?.amount]);
+  }, [paymentModal?.razorpayOrderId, paymentModal?.amount, onClose, onSuccess]);
 
   return null;
 }
