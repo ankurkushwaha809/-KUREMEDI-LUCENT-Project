@@ -908,6 +908,7 @@ function RazorpayModal({ paymentModal, onSuccess, onPaid, onClose }) {
     try {
       razorpayInstance = new window.Razorpay(options);
       razorpayInstance.on("payment.failed", (response) => {
+        const description = String(response?.error?.description || "");
         stopPolling();
         console.error("Payment failed:", {
           code: response.error.code,
@@ -916,6 +917,18 @@ function RazorpayModal({ paymentModal, onSuccess, onPaid, onClose }) {
           step: response.error.step,
           reason: response.error.reason,
         });
+
+        if (/website does not match registered website/i.test(description)) {
+          showToast(
+            "Payment blocked: this domain is not allowed in Razorpay Live settings. Please contact support.",
+            "error",
+          );
+          return;
+        }
+
+        if (description) {
+          showToast(description, "error");
+        }
       });
       razorpayInstance.open();
       startPolling();
