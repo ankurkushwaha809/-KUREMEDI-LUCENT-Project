@@ -32,9 +32,17 @@ export const sendOtp = (phone: string) =>
 export const verifyOtp = (phone: string, otp: string) =>
   api.post("/auth/verify-otp", { phone, otp }).then((res) => res.data);
 
+export const loginWithPassword = (email: string, password: string) =>
+  api.post("/auth/login", { email, password }).then((res) => res.data);
+
 export const completeRegistration = (
   tempToken: string,
-  data: { name: string; email: string; referralCode?: string },
+  data: {
+    name: string;
+    email: string;
+    password?: string;
+    referralCode?: string;
+  },
 ) =>
   api
     .post("/auth/complete-registration", {

@@ -1229,7 +1229,13 @@ router.get("/me", protect, async (req, res) => {
       }
     }
 
-    res.json(user);
+    const userObj = user.toObject();
+    if (userObj.role === "admin") {
+      userObj.isPrimaryAdmin = isPrimaryAdminEmail(userObj.email);
+      userObj.primaryAdminEmail = PRIMARY_ADMIN_EMAIL;
+    }
+
+    res.json(userObj);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });

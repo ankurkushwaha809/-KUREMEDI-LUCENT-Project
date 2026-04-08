@@ -75,9 +75,19 @@ export default function SettingsPage() {
       setLoadingAdmins(true);
       const data = await getAdminUsers();
       const adminList = Array.isArray(data?.admins) ? data.admins : [];
-      const filteredAdmins = adminList.filter(
-        (admin) => String(admin?.email || "").trim().toLowerCase() !== String(data?.primaryAdminEmail || primaryAdminEmail).trim().toLowerCase()
-      );
+      const backendPrimaryEmail = String(data?.primaryAdminEmail || "").trim().toLowerCase();
+      const knownPrimaryEmail = String(primaryAdminEmail || "").trim().toLowerCase();
+      const currentEmail = String(currentAdminEmail || "").trim().toLowerCase();
+
+      const filteredAdmins = adminList.filter((admin) => {
+        const adminEmail = String(admin?.email || "").trim().toLowerCase();
+        if (!adminEmail) return false;
+        if (backendPrimaryEmail && adminEmail === backendPrimaryEmail) return false;
+        if (knownPrimaryEmail && adminEmail === knownPrimaryEmail) return false;
+        if (isPrimaryAdmin && currentEmail && adminEmail === currentEmail) return false;
+        if (adminEmail === "kuremedi370@gmail.com") return false;
+        return true;
+      });
       setAdmins(filteredAdmins);
       if (data?.primaryAdminEmail) {
         setPrimaryAdminEmail(String(data.primaryAdminEmail));
@@ -94,8 +104,16 @@ export default function SettingsPage() {
       try {
         const profile = await getMyProfile();
         const email = String(profile?.email || "").trim().toLowerCase();
+        const primaryAdminEmail = String(profile?.primaryAdminEmail || "").trim().toLowerCase();
+        const isPrimary =
+          !!profile?.isPrimaryAdmin ||
+          (!!primaryAdminEmail && email === primaryAdminEmail) ||
+          email === "kuremedi370@gmail.com";
         setCurrentAdminEmail(email);
-        setIsPrimaryAdmin(email === "ankurkushwaha237@gmail.com");
+        setIsPrimaryAdmin(isPrimary);
+        if (profile?.primaryAdminEmail) {
+          setPrimaryAdminEmail(String(profile.primaryAdminEmail));
+        }
         setEmailChangeForm((prev) => ({ ...prev, currentEmail: email }));
       } catch {
         setCurrentAdminEmail("");

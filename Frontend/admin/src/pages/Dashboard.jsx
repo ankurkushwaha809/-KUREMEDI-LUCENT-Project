@@ -65,7 +65,12 @@ const Dashboard = () => {
       try {
         const profile = await getMyProfile();
         const email = String(profile?.email || "").trim().toLowerCase();
-        setIsPrimaryAdmin(email === "ankurkushwaha237@gmail.com");
+        const primaryAdminEmail = String(profile?.primaryAdminEmail || "").trim().toLowerCase();
+        const isPrimary =
+          !!profile?.isPrimaryAdmin ||
+          (!!primaryAdminEmail && email === primaryAdminEmail) ||
+          email === "kuremedi370@gmail.com";
+        setIsPrimaryAdmin(isPrimary);
       } catch {
         setIsPrimaryAdmin(false);
       }

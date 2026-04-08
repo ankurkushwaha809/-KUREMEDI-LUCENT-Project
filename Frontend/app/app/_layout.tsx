@@ -39,6 +39,13 @@ export default function RootLayout() {
                 }}
               />
               <Stack.Screen
+                name="signup"
+                options={{
+                  title: "Signup",
+                  presentation: "card",
+                }}
+              />
+              <Stack.Screen
                 name="kyc"
                 options={{ title: "KYC", presentation: "card" }}
               />
