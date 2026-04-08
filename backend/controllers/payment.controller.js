@@ -368,17 +368,23 @@ export const createPaymentOrder = async (req, res) => {
       });
     }
 
+    const razorpayOrderPayload = {
+      amount: razorpayAmountPaise,
+      currency: "INR",
+      receipt: order._id.toString(),
+      notes: {
+        orderId: order._id.toString(),
+        userId: String(req.user._id),
+      },
+    };
+
     const gatewayRes = await fetch("https://api.razorpay.com/v1/orders", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Basic ${Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64")}`,
       },
-      body: JSON.stringify({
-        amount: razorpayAmountPaise,
-        currency: "INR",
-        receipt: order._id.toString(),
-      }),
+      body: JSON.stringify(razorpayOrderPayload),
     });
 
     const gatewayData = await gatewayRes.json();
@@ -386,6 +392,15 @@ export const createPaymentOrder = async (req, res) => {
       await Order.findByIdAndDelete(order._id);
       const gatewayMessage = gatewayData?.error?.description || "Failed to create Razorpay order";
       const isRateLimited = /too many requests|rate limit/i.test(gatewayMessage);
+      
+      console.error("Razorpay order creation failed:", {
+        status: gatewayRes.status,
+        message: gatewayMessage,
+        amount: razorpayAmountPaise,
+        currency: "INR",
+        error: gatewayData?.error,
+      });
+      
       return res.status(isRateLimited ? 429 : 502).json({
         message: gatewayMessage,
         code: isRateLimited ? "RAZORPAY_RATE_LIMIT" : "RAZORPAY_CREATE_ORDER_FAILED",

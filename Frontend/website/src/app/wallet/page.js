@@ -68,8 +68,22 @@ export default function WalletPage() {
         order_id: res.razorpayOrderId,
         name: 'LucentMR',
         description: 'Wallet recharge',
+        prefill: {
+          method: "upi",
+        },
+        method: {
+          upi: true,
+          card: true,
+          netbanking: true,
+          wallet: false,
+          emandate: false,
+        },
         handler: async (response) => {
           try {
+            console.log("Wallet recharge payment successful:", {
+              paymentId: response.razorpay_payment_id,
+              orderId: response.razorpay_order_id,
+            });
             const verifyRes = await api.verifyWalletRecharge({
               razorpayOrderId: res.razorpayOrderId,
               razorpayPaymentId: response.razorpay_payment_id,
@@ -91,7 +105,13 @@ export default function WalletPage() {
       };
 
       const rzp = new window.Razorpay(options);
-      rzp.on('payment.failed', () => {
+      rzp.on('payment.failed', (response) => {
+        console.error("Wallet recharge payment failed:", {
+          code: response.error.code,
+          description: response.error.description,
+          source: response.error.source,
+          reason: response.error.reason,
+        });
         setRecharging(false);
       });
       rzp.open();

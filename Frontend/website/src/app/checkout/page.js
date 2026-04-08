@@ -705,18 +705,50 @@ function RazorpayModal({ paymentModal, onSuccess, onClose }) {
       order_id: paymentModal.razorpayOrderId,
       name: "Lucent Biotech Pharmacy",
       description: "Order payment",
+      prefill: {
+        method: "upi",
+      },
+      method: {
+        upi: true,
+        card: true,
+        netbanking: true,
+        wallet: false,
+        emandate: false,
+      },
       handler: (response) => {
+        console.log("Payment successful:", {
+          paymentId: response.razorpay_payment_id,
+          orderId: response.razorpay_order_id,
+        });
         onSuccess(response.razorpay_payment_id, response.razorpay_signature);
       },
       modal: {
-        ondismiss: () => onClose(),
+        ondismiss: () => {
+          console.warn("Payment modal dismissed by user");
+          onClose();
+        },
       },
     };
-    const rzp = new window.Razorpay(options);
-    rzp.open();
-    return () => {
-      try { rzp.close?.(); } catch (_) {}
-    };
+    
+    try {
+      const rzp = new window.Razorpay(options);
+      rzp.on("payment.failed", (response) => {
+        console.error("Payment failed:", {
+          code: response.error.code,
+          description: response.error.description,
+          source: response.error.source,
+          step: response.error.step,
+          reason: response.error.reason,
+        });
+      });
+      rzp.open();
+      return () => {
+        try { rzp.close?.(); } catch (_) {}
+      };
+    } catch (err) {
+      console.error("Razorpay initialization error:", err);
+      onClose();
+    }
   }, [paymentModal?.razorpayOrderId]);
 
   return null;
