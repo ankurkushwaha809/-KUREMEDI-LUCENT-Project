@@ -4,13 +4,13 @@
 const isDevelopment = process.env.NODE_ENV !== "production";
 const defaultApiBase = isDevelopment
   ? "http://localhost:5000/api"
-  : "http://13.127.14.35:5000/api";
+  : "https://api.kuremedi.com/api";
 
 let API_BASE = process.env.NEXT_PUBLIC_API_URL || defaultApiBase;
 
 // Normalize common mistakes from env (like `https:/.kuremedi.com/api`)
 API_BASE = API_BASE.trim();
-API_BASE = API_BASE.replace("https:/.kuremedi.com", "http://13.127.14.35:5000");
+API_BASE = API_BASE.replace("https:/.kuremedi.com", "https://api.kuremedi.com");
 
 export const API_BASE_URL = API_BASE;
 // If API is relative (/api), uploads should also be relative (/uploads).
@@ -20,4 +20,4 @@ export const API_UPLOAD_BASE =
   (API_BASE_URL.startsWith("/")
     ? API_BASE_URL.replace(/\/api\/?$/, "") || "/"
     : API_BASE_URL.replace(/\/api\/?$/, "")) ||
-  (isDevelopment ? "http://localhost:5000" : "http://13.127.14.35:5000");
+  (isDevelopment ? "http://localhost:5000" : "https://api.kuremedi.com");
