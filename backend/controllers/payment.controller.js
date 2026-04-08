@@ -721,6 +721,14 @@ export const getPaymentStatus = async (req, res) => {
       orderId: razorpayOrderId,
     });
 
+    if (!gateway.ok) {
+      return res.status(502).json({
+        status: "unknown",
+        message: "Unable to fetch payment status from Razorpay",
+        code: "RAZORPAY_STATUS_FETCH_FAILED",
+      });
+    }
+
     const payments = Array.isArray(gateway?.data?.items) ? gateway.data.items : [];
     const paidPayment = payments.find((p) => {
       const s = String(p?.status || "").toLowerCase();
@@ -736,8 +744,17 @@ export const getPaymentStatus = async (req, res) => {
         });
       } catch (finalizeErr) {
         console.error("getPaymentStatus finalizePaidOrder failed:", finalizeErr);
+        return res.status(500).json({
+          status: "unknown",
+          message: "Payment captured but finalization failed",
+          code: "ORDER_FINALIZATION_FAILED",
+        });
       }
-      return res.json({ status: "paid", orderStatus: "PLACED" });
+      return res.json({
+        status: "paid",
+        orderStatus: "PLACED",
+        paymentId: String(paidPayment.id),
+      });
     }
 
     return res.json({ status: "pending", orderStatus: order.status });

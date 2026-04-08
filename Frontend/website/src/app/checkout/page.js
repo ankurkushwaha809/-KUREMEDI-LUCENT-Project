@@ -811,6 +811,8 @@ function RazorpayModal({ paymentModal, onSuccess, onPaid, onClose }) {
     let successHandled = false;
     let pollTimer = null;
     let pollInFlight = false;
+    let pollFailures = 0;
+    let pollAttempts = 0;
     if (!paymentModal || !window.Razorpay) return;
 
     const stopPolling = () => {
@@ -826,15 +828,35 @@ function RazorpayModal({ paymentModal, onSuccess, onPaid, onClose }) {
         if (pollInFlight || paymentCompleted) return;
         pollInFlight = true;
         try {
+          pollAttempts += 1;
           const data = await api.getPaymentStatus(paymentModal.razorpayOrderId);
+          pollFailures = 0;
           if (String(data?.status || "").toLowerCase() === "paid") {
             paymentCompleted = true;
             stopPolling();
             try { razorpayInstance?.close?.(); } catch (_) {}
             onPaidRef.current?.();
+            return;
           }
-        } catch {
-          // Ignore intermittent polling errors; next cycle will retry.
+
+          if (pollAttempts % 6 === 0) {
+            console.log("Waiting for payment confirmation...", {
+              razorpayOrderId: paymentModal.razorpayOrderId,
+              attempt: pollAttempts,
+              status: data?.status,
+            });
+          }
+        } catch (err) {
+          pollFailures += 1;
+          if (pollFailures >= 4) {
+            stopPolling();
+            try { razorpayInstance?.close?.(); } catch (_) {}
+            showToast(
+              "We could not confirm payment automatically. If amount was debited, check Orders in 1 minute.",
+              "error",
+            );
+            onCloseRef.current?.();
+          }
         } finally {
           pollInFlight = false;
         }
