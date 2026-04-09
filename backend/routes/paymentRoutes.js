@@ -64,12 +64,9 @@ router.get("/orders", async (req, res) => {
 
     res.json(mapped);
   } catch (err) {
-    console.error("Error fetching orders:", err);
     res.status(500).json({ message: "Failed to fetch orders" });
   }
 });
-
-//Arshad's Ai made changes here
 
 /**
  * GET /api/payment/orders/:orderId
@@ -121,7 +118,6 @@ router.get("/orders/:orderId", async (req, res) => {
 
     res.json({ data: mapped });
   } catch (err) {
-    console.error("Error fetching order by ID:", err);
     res.status(500).json({ message: "Failed to fetch order" });
   }
 });

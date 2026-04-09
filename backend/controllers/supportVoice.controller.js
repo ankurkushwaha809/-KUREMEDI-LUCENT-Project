@@ -114,7 +114,6 @@ export const initiateCall = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("Initiate call error:", err);
     return res.status(500).json({
       message: err.message || "Failed to initiate call",
     });
@@ -172,7 +171,6 @@ export const callStatusCallback = async (req, res) => {
       });
     }
   } catch (err) {
-    console.error("Call status callback error:", err);
   }
 };
 

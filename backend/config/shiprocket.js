@@ -31,7 +31,6 @@ export const getShiprocketToken = async () => {
     return shiprocketToken;
   } catch (err) {
     const data = err.response?.data || err.message;
-    console.error("Shiprocket Login Error:", data);
     const e = new Error("Failed to login to Shiprocket");
     e.shiprocket = { stage: "login", response: err.response?.data, status: err.response?.status };
     throw e;
@@ -41,55 +40,6 @@ export const getShiprocketToken = async () => {
 /* ---------------------------------------------------------
    2️⃣ Create Shiprocket Order (After Payment)
 ---------------------------------------------------------- */
-// export const createShiprocketOrder = async (order) => {
-//   try {
-//     const token = await getShiprocketToken();
-
-//     const payload = {
-//       order_id: order._id,
-//       order_date: new Date(),
-//       pickup_location: process.env.PICKUP_LOCATION,
-//       billing_customer_name: order.userId?.name || "Customer",
-//       billing_last_name: "",
-//       billing_address: order.delivery_address.address_line,
-//       billing_city: order.delivery_address.city,
-//       billing_pincode: order.delivery_address.pincode,
-//       billing_state: order.delivery_address.state,
-//       billing_country: "India",
-//       billing_email: order.userId?.email || "noemail@kazoma.com",
-//       billing_phone: order.userId?.mobile || "9999999999",
-
-//       shipping_is_billing: true,
-
-//       order_items: order.cartItems.map((item) => ({
-//         name: item.name,
-//         sku: item.productId?._id || item.productId,
-//         units: item.quantity,
-//         selling_price: item.price,
-//       })),
-
-//       payment_method: order.payment_type === "paid" ? "Prepaid" : "COD",
-//       sub_total: order.totalAmt,
-
-//       // Mandatory dimensions
-//       length: 20,
-//       breadth: 15,
-//       height: 10,
-//       weight: 2,
-//     };
-// console.log("📦 Sending Payload To Shiprocket:", payload);
-//     const res = await axios.post(
-//       "https://apiv2.shiprocket.in/v1/external/orders/create/adhoc",
-//       payload,
-//       { headers: { Authorization: `Bearer ${token}` } }
-//     );
-
-//     return res.data; // returns shipment_id & order_id
-//   } catch (err) {
-//     console.error("Create Order Error:", err.response?.data || err.message);
-//     throw new Error("Failed to create Shiprocket order");
-//   }
-// };
 /**
  * Map our Order document (user populated, items) to the shape createShiprocketOrder expects.
  * Use this when calling from payment.controller (after payment success).
@@ -267,8 +217,6 @@ export const createShiprocketOrder = async (order) => {
         { headers: { Authorization: `Bearer ${token}` } },
       );
 
-    console.log("📦 Sending payload to Shiprocket:", payload);
-
     let res;
     try {
       res = await postOrder(payload);
@@ -283,12 +231,10 @@ export const createShiprocketOrder = async (order) => {
 
       if (isWrongPickup && list.length > 0 && list[0].pickup_location) {
         const correctPickup = list[0].pickup_location;
-        console.log("🔄 Retrying with pickup_location from Shiprocket:", correctPickup);
         payload.pickup_location = correctPickup;
         res = await postOrder(payload);
       } else {
         const details = data || err.message || err;
-        console.error("❌ Shiprocket Order Error:", details);
         const e = new Error(
           typeof details === "string" ? details : JSON.stringify(details),
         );
@@ -302,11 +248,9 @@ export const createShiprocketOrder = async (order) => {
       }
     }
 
-    console.log("🚀 Shiprocket response:", res.data);
     return res.data;
   } catch (err) {
     const details = err.response?.data || err.message || err;
-    console.error("❌ Shiprocket Order Error:", details);
     const e = new Error(
       typeof details === "string" ? details : JSON.stringify(details),
     );
@@ -338,7 +282,6 @@ export const generateAWB = async (shipmentId) => {
     return data?.response?.data ?? data?.response ?? data ?? {};
   } catch (err) {
     const details = err.response?.data || err.message;
-    console.error("AWB Error:", details);
     const e = new Error("Failed to generate AWB");
     e.shiprocket = { stage: "awb", response: err.response?.data, status: err.response?.status };
     throw e;
@@ -369,7 +312,6 @@ export const generateLabel = async (shipmentId) => {
     return { label_url: labelUrl, raw: data };
   } catch (err) {
     const details = err.response?.data || err.message;
-    console.error("Generate Label Error:", details);
     const e = new Error("Failed to generate label");
     e.shiprocket = { stage: "label", response: err.response?.data, status: err.response?.status };
     throw e;
@@ -393,7 +335,6 @@ export const generateManifest = async (shipmentId) => {
     return res.data;
   } catch (err) {
     const details = err.response?.data || err.message;
-    console.error("Generate Manifest Error:", details);
     const e = new Error("Failed to generate manifest");
     e.shiprocket = { stage: "manifest", response: err.response?.data, status: err.response?.status };
     throw e;
@@ -415,7 +356,6 @@ export const schedulePickup = async (shipmentId) => {
 
     return res.data;
   } catch (err) {
-    console.error("Pickup Error:", err.response?.data || err.message);
     throw new Error("Failed to schedule pickup");
   }
 };
@@ -434,7 +374,6 @@ export const trackShipment = async (awb) => {
 
     return res.data;
   } catch (err) {
-    console.error("Tracking Error:", err.response?.data || err.message);
     throw new Error("Failed to track shipment");
   }
 };
@@ -454,7 +393,6 @@ export const cancelShipment = async (shipmentId) => {
 
     return res.data;
   } catch (err) {
-    console.error("Cancel Shipment Error:", err.response?.data || err.message);
     throw new Error("Failed to cancel shipment");
   }
 };

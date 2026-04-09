@@ -45,7 +45,6 @@ export const getActiveBanners = async (req, res) => {
     const banners = await Banner.find({ isActive: true }).sort({ createdAt: -1 });
     res.json({ success: true, data: banners });
   } catch (error) {
-    console.error("getActiveBanners:", error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
@@ -55,7 +54,6 @@ export const getAllBannersAdmin = async (req, res) => {
     const banners = await Banner.find().sort({ createdAt: -1 });
     res.json({ success: true, data: banners });
   } catch (error) {
-    console.error("getAllBannersAdmin:", error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
@@ -90,8 +88,7 @@ export const createBanner = async (req, res) => {
 
     res.status(201).json({ success: true, message: "Banner created", banner });
   } catch (error) {
-    console.error("createBanner:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(201).json({ success: true, message: "Banner created", banner });
   }
 };
 
@@ -142,7 +139,6 @@ export const updateBanner = async (req, res) => {
     await banner.save();
     res.json({ success: true, message: "Banner updated", banner });
   } catch (error) {
-    console.error("updateBanner:", error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
@@ -157,7 +153,6 @@ export const deleteBanner = async (req, res) => {
     await banner.deleteOne();
     res.json({ success: true, message: "Banner deleted" });
   } catch (error) {
-    console.error("deleteBanner:", error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };

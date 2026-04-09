@@ -131,7 +131,6 @@ router.post("/send-otp", async (req, res) => {
     // Send SMS via Twilio
     const smsResult = await sendOtpSms(normalizedPhone, otp);
     if (!smsResult.success) {
-      console.error("Twilio SMS failed:", smsResult.error);
       if (process.env.NODE_ENV !== "production") {
         return res.json({
           message: "OTP generated (Twilio not configured - use devOtp for testing)",
@@ -146,7 +145,6 @@ router.post("/send-otp", async (req, res) => {
       ...(process.env.NODE_ENV !== "production" && { devOtp: otp }),
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -213,7 +211,6 @@ router.post("/verify-otp", async (req, res) => {
       tempToken,
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -330,7 +327,6 @@ router.post("/complete-registration", async (req, res) => {
       token: generateToken({ id: newUser._id }),
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -371,7 +367,6 @@ router.post("/password-reset/send-otp", async (req, res) => {
       ...(process.env.NODE_ENV !== "production" && { devOtp: otp }),
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -404,7 +399,6 @@ router.post("/password-reset/verify-otp", async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -459,7 +453,6 @@ router.post("/password-reset/complete", async (req, res) => {
       token: generateToken({ id: user._id }),
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -514,7 +507,6 @@ router.post("/signup", async (req, res) => {
       token: generateToken({ id: newUser._id }),
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -550,7 +542,6 @@ router.post("/login", async (req, res) => {
       token: generateToken({ id: user._id }),
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -577,7 +568,6 @@ router.post("/admin/forgot-password/questions", async (req, res) => {
 
     res.json({ questions });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -661,7 +651,6 @@ router.post("/admin/forgot-password/verify-security-answers", async (req, res) =
       resetToken,
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -704,7 +693,6 @@ router.post("/admin/forgot-password/reset", async (req, res) => {
 
     res.json({ message: "Password reset successful. Please login with your new password." });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -744,7 +732,6 @@ router.put("/admin/password", protect, authorizeRoles("admin"), async (req, res)
 
     res.json({ message: "Password updated successfully" });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -769,7 +756,6 @@ router.post("/admin/security/verify-password", protect, authorizeRoles("admin"),
       primaryAdminEmail: PRIMARY_ADMIN_EMAIL,
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -792,7 +778,6 @@ router.get("/admin/security-questions", protect, authorizeRoles("admin"), async 
       options: ADMIN_SECURITY_QUESTION_OPTIONS,
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -847,7 +832,6 @@ router.put("/admin/security-questions", protect, authorizeRoles("admin"), async 
       questions: normalizedItems.map((item) => item.question),
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -897,7 +881,6 @@ router.post("/admin/email-change/request-old", protect, authorizeRoles("admin"),
 
     res.json({ message: "OTP sent to current email", ...(process.env.NODE_ENV !== "production" && { devOtp: otp }) });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -952,7 +935,6 @@ router.post("/admin/email-change/verify-old", protect, authorizeRoles("admin"), 
 
     res.json({ message: "Old email verified. OTP sent to new email.", ...(process.env.NODE_ENV !== "production" && { devOtp: newOtp }) });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -1000,7 +982,6 @@ router.post("/admin/email-change/verify-new", protect, authorizeRoles("admin"), 
 
     res.json({ message: "Email changed successfully", email: user.email });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -1015,7 +996,6 @@ router.get("/admin/users", protect, authorizeRoles("admin"), async (req, res) =>
       .sort({ createdAt: -1 });
     res.json({ total: admins.length, admins, primaryAdminEmail: PRIMARY_ADMIN_EMAIL });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -1059,7 +1039,6 @@ router.post("/admin/users", protect, authorizeRoles("admin"), async (req, res) =
       admin: stripPassword(admin),
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -1087,7 +1066,6 @@ router.delete("/admin/users/:userId", protect, authorizeRoles("admin"), async (r
     await User.deleteOne({ _id: admin._id });
     res.json({ message: "Admin removed successfully" });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -1172,7 +1150,6 @@ router.put(
 
       res.json({ message: "KYC submitted successfully", user: userObj });
     } catch (error) {
-      console.error(error);
       res.status(500).json({ message: "Server error" });
     }
   }
@@ -1205,7 +1182,6 @@ router.get("/commission", protect, requireAgent, async (req, res) => {
       })),
     });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -1237,7 +1213,6 @@ router.get("/me", protect, async (req, res) => {
 
     res.json(userObj);
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -1264,7 +1239,6 @@ router.put("/me", protect, async (req, res) => {
     delete userObj.password;
     res.json(userObj);
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -1280,7 +1254,6 @@ router.get("/users", protect, authorizeRoles("admin"), async (req, res) => {
       .sort({ createdAt: -1 });
     res.json({ total: users.length, users });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -1297,7 +1270,6 @@ router.get("/users/deleted-history", protect, authorizeRoles("admin"), async (re
       .lean();
     res.json({ total: history.length, history });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -1338,7 +1310,6 @@ router.delete("/users/:userId", protect, authorizeRoles("admin"), async (req, re
     await User.deleteOne({ _id: user._id });
     res.json({ message: "User deleted successfully" });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -1375,7 +1346,6 @@ router.patch("/users/:userId/block", protect, authorizeRoles("admin"), async (re
       user: stripPassword(user),
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -1548,7 +1518,6 @@ router.put("/kyc-status/:userId", protect, authorizeRoles("admin"), async (req, 
 
     res.json({ message: "KYC status updated", user: obj });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -1675,7 +1644,6 @@ router.post(
         user: { _id: user._id, referralBonusCredited: user.referralBonusCredited },
       });
     } catch (error) {
-      console.error(error);
       res.status(500).json({ message: "Server error" });
     }
   }

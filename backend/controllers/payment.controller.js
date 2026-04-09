@@ -84,7 +84,6 @@ async function finalizePaidOrder({ order, userId, paymentId }) {
       await order.save();
     }
   } catch (srErr) {
-    console.error("Shiprocket create order (after payment):", srErr.message || srErr);
   }
 
   const walletAmount = order.walletAmount ?? 0;
@@ -417,7 +416,6 @@ export const createPaymentOrder = async (req, res) => {
           await order.save();
         }
       } catch (srErr) {
-        console.error("Shiprocket create order (wallet):", srErr.message || srErr);
       }
 
       return res.status(201).json({
@@ -477,14 +475,6 @@ export const createPaymentOrder = async (req, res) => {
       await Order.findByIdAndDelete(order._id);
       const gatewayDescription = sdkErr?.error?.description || sdkErr?.description;
       const errorMsg = gatewayDescription || sdkErr?.message || "Failed to create Razorpay order";
-      
-      console.error("Razorpay SDK order creation failed:", {
-        status: sdkErr?.statusCode,
-        message: errorMsg,
-        amount: razorpayAmountPaise,
-        currency: "INR",
-        error: sdkErr?.error || sdkErr,
-      });
 
       const isMinAmount = /minimum amount allowed/i.test(errorMsg);
       const isRateLimited = /too many requests|rate limit/i.test(errorMsg);
@@ -522,7 +512,6 @@ export const createPaymentOrder = async (req, res) => {
       keyId: RAZORPAY_KEY_ID || null,
     });
   } catch (err) {
-    console.error("createPaymentOrder:", err);
     res.status(500).json({ message: "Server error", code: "CREATE_ORDER_FAILED" });
   }
 };
@@ -666,7 +655,6 @@ export const verifyPayment = async (req, res) => {
       order,
     });
   } catch (err) {
-    console.error("verifyPayment:", err);
     res.status(500).json({ message: "Server error", code: "VERIFY_PAYMENT_FAILED" });
   }
 };
@@ -743,7 +731,6 @@ export const getPaymentStatus = async (req, res) => {
           paymentId: String(paidPayment.id),
         });
       } catch (finalizeErr) {
-        console.error("getPaymentStatus finalizePaidOrder failed:", finalizeErr);
         return res.status(500).json({
           status: "unknown",
           message: "Payment captured but finalization failed",
@@ -759,7 +746,6 @@ export const getPaymentStatus = async (req, res) => {
 
     return res.json({ status: "pending", orderStatus: order.status });
   } catch (err) {
-    console.error("getPaymentStatus:", err);
     return res.status(500).json({
       message: "Server error",
       code: "GET_PAYMENT_STATUS_FAILED",
@@ -821,7 +807,6 @@ export const updateOrderStatus = async (req, res) => {
             message: srErr.message,
             status: srErr.response?.status,
           };
-          console.error("Shiprocket create order (admin status change):", payload);
           return res.status(400).json({
             message: "Failed to create Shiprocket shipment",
             shiprocketError: payload,
@@ -881,28 +866,23 @@ export const updateOrderStatus = async (req, res) => {
               const labelRes = await generateLabel(order.shiprocketShipmentId);
               if (labelRes?.label_url) order.shiprocketLabelUrl = labelRes.label_url;
             } catch (labelErr) {
-              console.error("Shiprocket label (after AWB):", labelErr.message);
             }
             try {
               await generateManifest(order.shiprocketShipmentId);
             } catch (manifestErr) {
-              console.error("Shiprocket manifest (after AWB):", manifestErr.message);
             }
             try {
               await schedulePickup(order.shiprocketShipmentId);
             } catch (pickupErr) {
-              console.error("Shiprocket pickup (after AWB):", pickupErr.message);
             }
           } else {
             awbError = {
               message: "Shiprocket did not return a valid AWB code for this shipment.",
               response: awbRes,
             };
-            console.error("Shiprocket AWB missing in response:", awbRes);
           }
         } catch (awbErr) {
           awbError = awbErr.shiprocket || awbErr.message || String(awbErr);
-          console.error("Shiprocket AWB (admin ship):", awbError);
         }
       }
     }
@@ -928,7 +908,6 @@ export const updateOrderStatus = async (req, res) => {
     }
     res.json(json);
   } catch (err) {
-    console.error("updateOrderStatus:", err);
     res.status(500).json({ message: "Server error" });
   }
 };

@@ -19,16 +19,9 @@ const connectDB = async () => {
       }
 
       const conn = await mongoose.connect(process.env.MONGO_URI, options);
-      console.log(`MongoDB Connected: ${conn.connection.name}`);
       return;
     } catch (error) {
-      console.error(
-        `MongoDB connection failed (attempt ${attempt}/${maxRetries}) ❌`,
-        error.message
-      );
-
       if (attempt === maxRetries) {
-        console.error("Exhausted MongoDB retries. Exiting process.");
         process.exit(1);
       }
 

@@ -86,7 +86,6 @@ app.use("/api/marketing", marketingRoutes);
 
 // Error handler (e.g. multer LIMIT_FILE_SIZE) – must have 4 args
 app.use((err, req, res, next) => {
-  console.error("Request error:", err);
   if (err.code === "LIMIT_FILE_SIZE") {
     return res
       .status(413)
@@ -107,5 +106,4 @@ const server = http.createServer(app);
 attachSupportWs(server);
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on http://0.0.0.0:${PORT}`);
 });

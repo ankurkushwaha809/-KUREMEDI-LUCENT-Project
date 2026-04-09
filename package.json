@@ -1,1 +1,20 @@
-{}
+{
+  "name": "lucent-app",
+  "version": "1.0.0",
+  "description": "E-commerce application with mobile app, admin dashboard, marketing app, and website",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "Frontend/app",
+    "Frontend/admin",
+    "Frontend/mrapp",
+    "Frontend/website"
+  ],
+  "scripts": {
+    "backend": "cd backend && npm run dev",
+    "app": "cd Frontend/app && npm start",
+    "admin": "cd Frontend/admin && npm run dev",
+    "mrapp": "cd Frontend/mrapp && npm start",
+    "website": "cd Frontend/website && npm run dev"
+  }
+}

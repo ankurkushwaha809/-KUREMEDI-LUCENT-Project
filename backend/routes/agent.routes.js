@@ -65,7 +65,6 @@ router.get(
         agents,
       });
     } catch (err) {
-      console.error(err);
       res.status(500).json({ message: "Server error" });
     }
   }
@@ -108,7 +107,6 @@ router.get(
       });
       res.json({ total: list.length, referrals: list });
     } catch (err) {
-      console.error(err);
       res.status(500).json({ message: "Server error" });
     }
   }
@@ -132,7 +130,6 @@ router.get(
         .lean();
       res.json({ total: list.length, withdrawals: list });
     } catch (err) {
-      console.error(err);
       res.status(500).json({ message: "Server error" });
     }
   }
@@ -188,7 +185,6 @@ router.patch(
       await withdrawal.save();
       res.json(withdrawal);
     } catch (err) {
-      console.error(err);
       res.status(500).json({ message: "Server error" });
     }
   }
@@ -202,7 +198,6 @@ router.get("/me/profile", protect, requireAgent, async (req, res) => {
     if (!agent) return res.status(404).json({ message: "Agent profile not found" });
     res.json(agent);
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -242,7 +237,6 @@ router.get("/me/commission", protect, requireAgent, async (req, res) => {
       })),
     });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -293,7 +287,6 @@ router.get("/me/withdrawals", protect, requireAgent, async (req, res) => {
       availableBalance,
     });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -350,7 +343,6 @@ router.post("/me/withdrawals", protect, requireAgent, async (req, res) => {
       createdAt: withdrawal.createdAt,
     });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -380,7 +372,6 @@ router.get("/me/referrals", protect, async (req, res) => {
       })),
     });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -420,7 +411,6 @@ router.put(
       await agent.save();
       res.json(agent);
     } catch (err) {
-      console.error(err);
       res.status(500).json({ message: "Server error" });
     }
   }
@@ -439,7 +429,6 @@ router.get(
       if (!agent) return res.status(404).json({ message: "Agent not found" });
       res.json(agent);
     } catch (err) {
-      console.error(err);
       res.status(500).json({ message: "Server error" });
     }
   }
@@ -642,7 +631,6 @@ router.put(
 
       res.json({ message: "KYC status updated", agent });
     } catch (err) {
-      console.error(err);
       res.status(500).json({ message: "Server error" });
     }
   }
@@ -754,7 +742,6 @@ router.post(
 
       res.status(201).json(agent);
     } catch (err) {
-      console.error(err);
       res.status(500).json({ message: "Server error" });
     }
   }
@@ -796,7 +783,6 @@ router.put(
       await agent.save();
       res.json(agent);
     } catch (err) {
-      console.error(err);
       res.status(500).json({ message: "Server error" });
     }
   }
@@ -822,7 +808,6 @@ router.delete(
       await Agent.deleteOne({ _id: agent._id });
       res.json({ message: "Agent deleted successfully" });
     } catch (err) {
-      console.error(err);
       res.status(500).json({ message: "Server error" });
     }
   }

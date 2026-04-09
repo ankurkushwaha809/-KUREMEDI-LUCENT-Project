@@ -98,7 +98,6 @@ export const placeOrder = async (req, res) => {
       order,
     });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -179,7 +178,6 @@ export const getOrderTracking = async (req, res) => {
       try {
         tracking = await trackShipment(order.shiprocketAwb);
       } catch (err) {
-        console.error("Shiprocket track:", err.message);
       }
     }
 
@@ -197,7 +195,6 @@ export const getOrderTracking = async (req, res) => {
       tracking,
     });
   } catch (err) {
-    console.error("getOrderTracking:", err);
     res.status(500).json({ message: "Server error" });
   }
 };

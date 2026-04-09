@@ -35,7 +35,6 @@ export const createBrand = async (req, res) => {
       brand,
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
@@ -46,7 +45,6 @@ export const getAllBrands = async (req, res) => {
     const brands = await Brand.find().sort({ createdAt: -1 });
     res.json({ success: true, data: brands });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
@@ -84,7 +82,6 @@ export const updateBrand = async (req, res) => {
       brand,
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
@@ -103,8 +100,6 @@ export const deleteBrand = async (req, res) => {
 
     res.json({ success: true, message: "Brand deleted successfully" });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
-

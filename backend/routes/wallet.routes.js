@@ -65,7 +65,6 @@ router.get("/", protect, async (req, res) => {
       transactions: txns,
     });
   } catch (err) {
-    console.error("getWallet:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -127,13 +126,7 @@ router.post("/recharge", protect, async (req, res) => {
       const gatewayDescription = sdkErr?.error?.description || sdkErr?.description;
       const errorMsg = gatewayDescription || sdkErr?.message || "Failed to create Razorpay order";
       const isMinAmount = /minimum amount allowed/i.test(errorMsg);
-      console.error("Wallet recharge order creation failed:", {
-        status: sdkErr?.statusCode,
-        message: errorMsg,
-        amount: amountPaise,
-        error: sdkErr?.error || sdkErr,
-      });
-      return res.status(isMinAmount ? 400 : 502).json({ 
+      return res.status(isMinAmount ? 400 : 502).json({
         message: errorMsg,
         code: isMinAmount ? "RAZORPAY_MIN_AMOUNT_NOT_MET" : "RAZORPAY_ORDER_CREATE_FAILED"
       });
@@ -159,7 +152,6 @@ router.post("/recharge", protect, async (req, res) => {
       keyId: RAZORPAY_KEY_ID,
     });
   } catch (err) {
-    console.error("wallet recharge create:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -288,7 +280,6 @@ router.post("/recharge/verify", protect, async (req, res) => {
       receipt,
     });
   } catch (err) {
-    console.error("wallet recharge verify:", err);
     res.status(500).json({ message: "Server error" });
   }
 });

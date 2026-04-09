@@ -384,7 +384,6 @@ export const bulkImportProducts = async (req, res) => {
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error) {
-    console.error("Bulk import error:", error);
     res.status(500).json({
       success: false,
       message: error.message || "Bulk import failed",

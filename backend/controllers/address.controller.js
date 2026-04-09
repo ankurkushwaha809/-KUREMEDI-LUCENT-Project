@@ -8,7 +8,6 @@ export const getMyAddresses = async (req, res) => {
     });
     res.json({ success: true, data: addresses });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -38,7 +37,6 @@ export const addAddress = async (req, res) => {
 
     res.status(201).json({ success: true, address: doc });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -53,7 +51,6 @@ export const updateAddress = async (req, res) => {
     if (!doc) return res.status(404).json({ message: "Address not found" });
     res.json({ success: true, address: doc });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -67,7 +64,6 @@ export const deleteAddress = async (req, res) => {
     if (!doc) return res.status(404).json({ message: "Address not found" });
     res.json({ success: true, message: "Address deleted" });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 };

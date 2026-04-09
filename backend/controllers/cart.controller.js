@@ -79,7 +79,6 @@ export const addToCart = async (req, res) => {
       cart: cartPopulated || cart,
     });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
@@ -162,7 +161,6 @@ export const getMyCart = async (req, res) => {
 
     res.json({ success: true, ...cartObj });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
@@ -237,7 +235,6 @@ export const removeFromCart = async (req, res) => {
     const cartPopulated = await Cart.findById(cart._id).populate("items.product");
     res.json({ success: true, message: "Removed from cart", cart: cartPopulated || cart });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
@@ -252,7 +249,6 @@ export const clearCart = async (req, res) => {
 
     res.json({ success: true, message: "Cart cleared" });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
