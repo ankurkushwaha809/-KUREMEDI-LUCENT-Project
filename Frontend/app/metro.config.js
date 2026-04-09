@@ -1,24 +1,32 @@
 const { getDefaultConfig } = require("expo/metro-config");
 const { withNativeWind } = require("nativewind/metro");
 const path = require("path");
+const fs = require("fs");
 
 const config = getDefaultConfig(__dirname);
+const workspaceRoot = path.resolve(__dirname, "../..");
+const resolveModulePath = (moduleName) => {
+  const localPath = path.resolve(__dirname, `node_modules/${moduleName}`);
+  if (fs.existsSync(localPath)) return localPath;
+  return path.resolve(workspaceRoot, `node_modules/${moduleName}`);
+};
 
-// Lock Metro resolution to the app's own dependencies to avoid workspace-hoisted duplicates.
-config.resolver.nodeModulesPaths = [path.resolve(__dirname, "node_modules")];
-config.resolver.disableHierarchicalLookup = true;
+// Support both app-local and workspace-hoisted dependencies.
+config.resolver.nodeModulesPaths = [
+  path.resolve(__dirname, "node_modules"),
+  path.resolve(workspaceRoot, "node_modules"),
+];
+config.resolver.disableHierarchicalLookup = false;
 
 config.resolver.extraNodeModules = {
   ...(config.resolver.extraNodeModules || {}),
-  react: path.resolve(__dirname, "node_modules/react"),
-  "react-dom": path.resolve(__dirname, "node_modules/react-dom"),
-  "react-native-safe-area-context": path.resolve(
-    __dirname,
-    "node_modules/react-native-safe-area-context"
+  react: resolveModulePath("react"),
+  "react-dom": resolveModulePath("react-dom"),
+  "react-native-safe-area-context": resolveModulePath(
+    "react-native-safe-area-context"
   ),
-  "@react-native/virtualized-lists": path.resolve(
-    __dirname,
-    "node_modules/react-native/node_modules/@react-native/virtualized-lists"
+  "@react-native/virtualized-lists": resolveModulePath(
+    "react-native/node_modules/@react-native/virtualized-lists"
   ),
 };
 

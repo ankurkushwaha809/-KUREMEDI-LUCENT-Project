@@ -5,7 +5,7 @@ const processEnv: Record<string, string> | undefined =
 
 // API: EXPO_PUBLIC_API_URL (full URL). Default points to production API.
 const DEFAULT_API_URL = "https://api.kuremedi.com/api";
-const FALLBACK_API_URLS = ["http://13.127.14.35:5000/api"];
+const FALLBACK_API_URLS = ["http://localhost:5000/api"];
 
 const getBaseUrl = (): string => {
   const envUrl = processEnv?.EXPO_PUBLIC_API_URL;

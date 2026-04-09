@@ -7,15 +7,22 @@ import {
   FlatList,
   Image,
   Keyboard,
+  Linking,
   Pressable,
   ScrollView,
   Text,
   TextInput,
   View,
   ImageBackground,
+  type ImageSourcePropType,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { getProducts, getCategories, getBrands } from "../../src/api";
+import {
+  getProducts,
+  getCategories,
+  getBrands,
+  getMarketingBanners,
+} from "../../src/api";
 import { useAuth } from "../../src/context/AuthContext";
 import { useCart } from "../../src/context/CartContext";
 import { useWishlist } from "../../src/context/WishlistContext";
@@ -33,16 +40,64 @@ import {
   SkeletonBrandGrid,
   SkeletonProductRow,
 } from "../../src/components/Skeleton";
+import { API_UPLOAD_BASE } from "../../src/config";
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = width / 2.5;
 const BANNER_WIDTH = width - 32;
 
-const BANNER_IMAGES = [
-  require("@/assets/banner.jpeg"),
-  require("@/assets/banner.jpeg"),
-  require("@/assets/banner.jpeg"),
+type BannerSlide = {
+  image: ImageSourcePropType;
+  redirectUrl: string;
+  ctaText: string;
+  title: string;
+  subtitle: string;
+  textColor: string;
+  subtitleColor: string;
+  buttonColor: string;
+};
+
+const FALLBACK_BANNERS: BannerSlide[] = [
+  {
+    image: require("@/assets/banner.jpeg"),
+    redirectUrl: "/all-categories",
+    ctaText: "Shop now",
+    title: "Trusted medicines, delivered fast",
+    subtitle: "Smart pricing for pharmacies and clinics",
+    textColor: "#ffffff",
+    subtitleColor: "#e2e8f0",
+    buttonColor: "#0f172a",
+  },
+  {
+    image: require("@/assets/banner.jpeg"),
+    redirectUrl: "/all-brands",
+    ctaText: "Explore brands",
+    title: "Bulk health essentials in one place",
+    subtitle: "Top brands with reliable availability",
+    textColor: "#ffffff",
+    subtitleColor: "#e2e8f0",
+    buttonColor: "#0f172a",
+  },
+  {
+    image: require("@/assets/banner.jpeg"),
+    redirectUrl: "/search",
+    ctaText: "Find products",
+    title: "Better stock, better margins",
+    subtitle: "Explore seasonal offers on daily movers",
+    textColor: "#ffffff",
+    subtitleColor: "#e2e8f0",
+    buttonColor: "#0f172a",
+  },
 ];
+
+const resolveBannerImage = (image: unknown): string | null => {
+  if (!image || typeof image !== "string") return null;
+  const trimmed = image.trim();
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (trimmed.startsWith("/")) return `${API_UPLOAD_BASE}${trimmed}`;
+  return `${API_UPLOAD_BASE}/${trimmed.replace(/^\/+/, "")}`;
+};
 
 export default function Home() {
   const insets = useSafeAreaInsets();
@@ -127,6 +182,9 @@ export default function Home() {
   const [products, setProducts] = useState<AppProduct[]>([]);
   const [categories, setCategories] = useState<AppCategory[]>([]);
   const [brands, setBrands] = useState<AppBrand[]>([]);
+  const [bannerSlides, setBannerSlides] = useState<BannerSlide[]>(
+    FALLBACK_BANNERS,
+  );
   const [loadingHome, setLoadingHome] = useState(true);
   const [editingQtyId, setEditingQtyId] = useState<string | null>(null);
   const [editingQtyVal, setEditingQtyVal] = useState("");
@@ -135,35 +193,91 @@ export default function Home() {
   const bannerScrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
+    if (!bannerSlides.length) return;
     const timer = setInterval(() => {
       setBannerIndex((prev) => {
-        const next = (prev + 1) % BANNER_IMAGES.length;
+        const next = (prev + 1) % bannerSlides.length;
         bannerScrollRef.current?.scrollTo({
           x: next * BANNER_WIDTH,
           animated: true,
         });
         return next;
       });
-    }, 2000);
+    }, 4000);
     return () => clearInterval(timer);
-  }, []);
+  }, [bannerSlides.length]);
 
-  // Single batched load: products, categories, brands in parallel to avoid multiple paints and slow API
+  useEffect(() => {
+    if (!bannerSlides.length) return;
+    setBannerIndex((prev) => (prev >= bannerSlides.length ? 0 : prev));
+  }, [bannerSlides.length]);
+
+  // Single batched load: products, categories, brands, banners in parallel.
   useEffect(() => {
     setLoadingHome(true);
-    Promise.all([getProducts(), getCategories(), getBrands()])
-      .then(([productsData, categoriesData, brandsData]) => {
+    Promise.all([
+      getProducts(),
+      getCategories(),
+      getBrands(),
+      getMarketingBanners(),
+    ])
+      .then(([productsData, categoriesData, brandsData, bannersData]) => {
         setProducts(normalizeProducts(productsData));
         setCategories(normalizeCategories(categoriesData));
         setBrands(normalizeBrands(brandsData));
+
+        const activeBanners = Array.isArray(bannersData?.data)
+          ? bannersData.data
+              .map((banner: Record<string, unknown>) => {
+                const imageUrl = resolveBannerImage(banner?.image);
+                if (!imageUrl) return null;
+                return {
+                  image: { uri: imageUrl },
+                  redirectUrl: String(banner?.redirectUrl || "").trim(),
+                  ctaText:
+                    String(banner?.ctaText || "Shop now").trim() ||
+                    "Shop now",
+                  title: String(banner?.title || "").trim(),
+                  subtitle: String(banner?.subtitle || "").trim(),
+                  textColor:
+                    String(banner?.textColor || "#ffffff").trim() ||
+                    "#ffffff",
+                  subtitleColor:
+                    String(banner?.subtitleColor || "#e2e8f0").trim() ||
+                    "#e2e8f0",
+                  buttonColor:
+                    String(banner?.buttonColor || "#0f172a").trim() ||
+                    "#0f172a",
+                } satisfies BannerSlide;
+              })
+              .filter((banner): banner is BannerSlide => !!banner)
+          : [];
+        setBannerSlides(activeBanners.length ? activeBanners : FALLBACK_BANNERS);
       })
       .catch(() => {
         setProducts([]);
         setCategories([]);
         setBrands([]);
+        setBannerSlides(FALLBACK_BANNERS);
       })
       .finally(() => setLoadingHome(false));
   }, []);
+
+  const handleBannerPress = async (slide: BannerSlide) => {
+    const target = slide.redirectUrl?.trim();
+    if (!target) return;
+    if (/^https?:\/\//i.test(target)) {
+      const supported = await Linking.canOpenURL(target);
+      if (!supported) {
+        showToast("Could not open banner link", "error");
+        return;
+      }
+      await Linking.openURL(target);
+      return;
+    }
+    const path = target.startsWith("/") ? target : `/${target}`;
+    router.push(path as never);
+  };
 
   const getQty = (id: string) => items.find((i) => i._id === id)?.qty ?? 0;
 
@@ -389,7 +503,7 @@ export default function Home() {
           </>
         ) : (
           <>
-        {/* Banner slider - auto slide every 2 sec */}
+        {/* Hero banner with auto-slide and optional redirect action */}
         <View className="mt-4 mx-5 rounded-2xl overflow-hidden">
           <ScrollView
             ref={bannerScrollRef}
@@ -404,26 +518,69 @@ export default function Home() {
             }}
             style={{ width: BANNER_WIDTH }}
           >
-            {BANNER_IMAGES.map((img, idx) => (
+            {bannerSlides.map((slide, idx) => (
               <ImageBackground
                 key={idx}
-                source={img}
+                source={slide.image}
                 resizeMode="cover"
                 style={{ width: BANNER_WIDTH, height: 120 }}
-                className="items-center justify-center"
+                className="justify-between"
               >
-                <View className="flex-1 w-full px-5 py-4 flex-row items-center justify-end">
-                  <Ionicons name="chevron-forward" size={24} color="#fff" />
+                <View className="absolute inset-0 bg-black/30" />
+                <View className="flex-1 w-full px-5 py-4 justify-start">
+                  {!!slide.title && (
+                    <Text
+                      numberOfLines={2}
+                      style={{ color: slide.textColor }}
+                      className="text-xl font-extrabold"
+                    >
+                      {slide.title}
+                    </Text>
+                  )}
+                  {!!slide.subtitle && (
+                    <Text
+                      numberOfLines={2}
+                      style={{ color: slide.subtitleColor }}
+                      className="text-xs font-medium mt-1"
+                    >
+                      {slide.subtitle}
+                    </Text>
+                  )}
                 </View>
+
+                {!!slide.redirectUrl && (
+                  <Pressable
+                    onPress={() => void handleBannerPress(slide)}
+                    className="mx-5 mb-4 self-start rounded-full px-4 py-2"
+                    style={{ backgroundColor: slide.buttonColor }}
+                  >
+                    <View className="flex-row items-center">
+                      <Text className="text-white text-xs font-bold uppercase tracking-wide mr-2">
+                        {slide.ctaText || "Shop now"}
+                      </Text>
+                      <Ionicons name="chevron-forward" size={16} color="#fff" />
+                    </View>
+                  </Pressable>
+                )}
+                {!slide.redirectUrl && (
+                  <View className="w-full px-5 py-4 flex-row items-center justify-end">
+                    <Ionicons name="chevron-forward" size={24} color="#fff" />
+                  </View>
+                )}
               </ImageBackground>
             ))}
           </ScrollView>
-          <View className="absolute bottom-3 left-0 right-0 flex-row justify-center gap-2">
-            {BANNER_IMAGES.map((_, idx) => (
-              <View
-                key={idx}
-                className={`rounded-full ${bannerIndex === idx ? "w-2.5 h-2.5 bg-white" : "w-2 h-2 bg-white/50"}`}
-              />
+          <View className="absolute bottom-1 left-0 right-0 flex-row justify-center gap-2">
+            {bannerSlides.map((_, idx) => (
+              <Pressable key={idx} onPress={() => setBannerIndex(idx)}>
+                <View
+                  className={`rounded-full ${
+                    bannerIndex === idx
+                      ? "w-2.5 h-2.5 bg-white"
+                      : "w-2 h-2 bg-white/55"
+                  }`}
+                />
+              </Pressable>
             ))}
           </View>
         </View>

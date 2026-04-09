@@ -13,7 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getMyReferrals, type MyReferralsResponse } from '@/src/api';
 import { useAuth } from '@/src/context/AuthContext';
-import { APP_NAME, ENTITY_FULL } from '../constants';
+import { APP_NAME, ENTITY_FULL } from '@/src/constants/app';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();

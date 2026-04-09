@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "kuremedi",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
       "bundleIdentifier": "com.digimese.kuremedi",
       "infoPlist": {
@@ -55,10 +55,9 @@
     "experiments": {
       "typedRoutes": true
     },
-    "owner": "babloo123",
     "extra": {
       "eas": {
-        "projectId": "32353b1a-20d4-4355-a98c-d48dc29c01cd"
+        "projectId": "424df37e-c7d3-4a62-a4c6-87006f8e70c4"
       }
     }
   }

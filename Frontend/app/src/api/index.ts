@@ -25,6 +25,10 @@ export const getCategories = () =>
 // Brands - GET /brands returns { success, data }
 export const getBrands = () => api.get("/brands").then((res) => res.data);
 
+// Marketing banners - GET /marketing/banners returns { success, data }
+export const getMarketingBanners = () =>
+  api.get("/marketing/banners").then((res) => res.data);
+
 // Auth - mobile OTP flow (backend uses "phone")
 export const sendOtp = (phone: string) =>
   api.post("/auth/send-otp", { phone }).then((res) => res.data);

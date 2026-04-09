@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ADMIN_AGENT_CONTEXT, APP_NAME, ENTITY_FULL } from '../constants';
+import { ADMIN_AGENT_CONTEXT, APP_NAME, ENTITY_FULL } from '@/src/constants/app';
 import { useAuth } from '@/src/context/AuthContext';
 
 const KYC_STATUS_STYLES: Record<string, { bg: string; text: string }> = {

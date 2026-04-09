@@ -15,7 +15,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { APP_NAME } from './constants';
+import { APP_NAME } from '@/src/constants/app';
 import { sendOtp, verifyOtp, completeRegistration } from '@/src/api';
 import { useAuth } from '@/src/context/AuthContext';
 import type { User } from '@/src/context/AuthContext';

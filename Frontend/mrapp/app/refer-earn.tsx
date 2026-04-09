@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getMyReferrals, type MyReferralsResponse } from '@/src/api';
-import { APP_NAME } from './constants';
+import { APP_NAME } from '@/src/constants/app';
 import { useAuth } from '@/src/context/AuthContext';
 
 export default function ReferEarnScreen() {
