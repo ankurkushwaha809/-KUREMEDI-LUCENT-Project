@@ -1,6 +1,7 @@
 {
   "name": "lucent-app",
   "version": "1.0.0",
+  "main": "Frontend/app/index.js",
   "description": "E-commerce application with mobile app, admin dashboard, marketing app, and website",
   "private": true,
   "workspaces": [
@@ -16,5 +17,10 @@
     "admin": "cd Frontend/admin && npm run dev",
     "mrapp": "cd Frontend/mrapp && npm start",
     "website": "cd Frontend/website && npm run dev"
+  },
+  "overrides": {
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native-safe-area-context": "5.6.2"
   }
 }

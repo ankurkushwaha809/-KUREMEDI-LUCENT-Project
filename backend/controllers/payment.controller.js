@@ -123,6 +123,10 @@ async function finalizePaidOrder({ order, userId, paymentId }) {
 }
 
 function getWebhookRawBody(req) {
+  if (Buffer.isBuffer(req.body) && req.body.length) {
+    return req.body;
+  }
+
   if (Buffer.isBuffer(req.rawBody) && req.rawBody.length) {
     return req.rawBody;
   }
@@ -170,23 +174,53 @@ export const handleRazorpayWebhook = async (req, res) => {
 
     const expected = crypto.createHmac("sha256", webhookSecret).update(rawBody).digest("hex");
     if (!timingSafeSignatureEqual(expected, signature)) {
-      return res.status(401).json({
+      return res.status(400).json({
         message: "Invalid webhook signature",
         code: "INVALID_WEBHOOK_SIGNATURE",
       });
     }
 
-    const eventName = String(req.body?.event || "").toLowerCase();
-    if (eventName !== "payment.captured" && eventName !== "order.paid") {
+    let payload = null;
+    try {
+      payload = JSON.parse(rawBody.toString("utf8"));
+    } catch {
+      return res.status(400).json({
+        message: "Invalid webhook JSON payload",
+        code: "INVALID_WEBHOOK_JSON",
+      });
+    }
+
+    const eventName = String(payload?.event || "").toLowerCase();
+    const paymentEntity = payload?.payload?.payment?.entity;
+    const razorpayOrderId = String(paymentEntity?.order_id || "").trim();
+    const razorpayPaymentId = String(paymentEntity?.id || "").trim();
+
+    console.info("[razorpay-webhook]", {
+      event: eventName || "unknown",
+      paymentId: razorpayPaymentId || null,
+      orderId: razorpayOrderId || null,
+    });
+
+    if (
+      eventName !== "payment.captured" &&
+      eventName !== "payment.failed" &&
+      eventName !== "order.paid"
+    ) {
       return res.status(200).json({ received: true, processed: false, ignoredEvent: eventName });
     }
 
-    const paymentEntity = req.body?.payload?.payment?.entity;
-    const razorpayOrderId = String(paymentEntity?.order_id || "").trim();
-    const razorpayPaymentId = String(paymentEntity?.id || "").trim();
     const paymentStatus = String(paymentEntity?.status || "").toLowerCase();
     const paymentCurrency = String(paymentEntity?.currency || "").toUpperCase();
     const paymentAmountPaise = Number(paymentEntity?.amount || 0);
+
+    if (eventName === "payment.failed") {
+      return res.status(200).json({
+        received: true,
+        processed: true,
+        event: eventName,
+        paymentId: razorpayPaymentId || null,
+      });
+    }
 
     if (!razorpayOrderId || !razorpayPaymentId) {
       return res.status(400).json({
@@ -267,6 +301,7 @@ export const handleRazorpayWebhook = async (req, res) => {
       razorpayPaymentId,
     });
   } catch (err) {
+    console.error("[razorpay-webhook] processing error", err);
     return res.status(500).json({
       message: "Webhook processing failed",
       code: "WEBHOOK_PROCESSING_FAILED",

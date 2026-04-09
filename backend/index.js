@@ -51,15 +51,11 @@ app.use(cors({
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
-app.use(
-  express.json({
-    verify: (req, res, buf) => {
-      if (req.originalUrl?.startsWith("/api/payment/webhook")) {
-        req.rawBody = Buffer.from(buf);
-      }
-    },
-  }),
-);
+// Razorpay webhook must receive the exact raw request body for signature verification.
+app.use("/api/payment/webhook", express.raw({ type: "application/json" }));
+
+// Keep regular JSON parsing for all other API routes.
+app.use(express.json());
 
 // Test Route
 app.get("/", (req, res) => {

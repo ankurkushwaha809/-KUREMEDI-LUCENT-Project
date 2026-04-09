@@ -13,12 +13,12 @@ function usePulse(duration = 1200) {
         Animated.timing(anim, {
           toValue: 0.7,
           duration: duration / 2,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.timing(anim, {
           toValue: 0.4,
           duration: duration / 2,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ])
     );

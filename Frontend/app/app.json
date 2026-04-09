@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "kuremedi",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
       "bundleIdentifier": "com.digimese.kuremedi",
       "infoPlist": {
@@ -53,8 +53,7 @@
       ]
     ],
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+      "typedRoutes": true
     },
     "owner": "babloo123",
     "extra": {
