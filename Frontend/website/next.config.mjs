@@ -14,6 +14,7 @@ function toBaseWithoutApi(urlString) {
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const workspaceRoot = path.resolve(__dirname, '../..');
 
 function buildRemotePatterns() {
   const candidates = [
@@ -50,7 +51,7 @@ function buildRemotePatterns() {
 
 const nextConfig = {
   turbopack: {
-    root: __dirname,
+    root: workspaceRoot,
   },
   images: {
     remotePatterns: buildRemotePatterns(),
