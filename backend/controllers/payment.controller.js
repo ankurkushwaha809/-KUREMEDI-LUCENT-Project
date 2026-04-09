@@ -122,6 +122,158 @@ async function finalizePaidOrder({ order, userId, paymentId }) {
   return order;
 }
 
+function getWebhookRawBody(req) {
+  if (Buffer.isBuffer(req.rawBody) && req.rawBody.length) {
+    return req.rawBody;
+  }
+
+  if (typeof req.body === "string") {
+    return Buffer.from(req.body, "utf8");
+  }
+
+  if (req.body && typeof req.body === "object") {
+    return Buffer.from(JSON.stringify(req.body), "utf8");
+  }
+
+  return null;
+}
+
+/**
+ * RAZORPAY WEBHOOK
+ * POST /api/payment/webhook
+ */
+export const handleRazorpayWebhook = async (req, res) => {
+  try {
+    const webhookSecret = String(process.env.RAZORPAY_WEBHOOK_SECRET || "").trim();
+    if (!webhookSecret) {
+      return res.status(503).json({
+        message: "Webhook secret not configured",
+        code: "RAZORPAY_WEBHOOK_NOT_CONFIGURED",
+      });
+    }
+
+    const signature = String(req.headers["x-razorpay-signature"] || "").trim();
+    if (!signature) {
+      return res.status(400).json({
+        message: "Missing webhook signature",
+        code: "MISSING_WEBHOOK_SIGNATURE",
+      });
+    }
+
+    const rawBody = getWebhookRawBody(req);
+    if (!rawBody) {
+      return res.status(400).json({
+        message: "Missing webhook payload",
+        code: "MISSING_WEBHOOK_PAYLOAD",
+      });
+    }
+
+    const expected = crypto.createHmac("sha256", webhookSecret).update(rawBody).digest("hex");
+    if (!timingSafeSignatureEqual(expected, signature)) {
+      return res.status(401).json({
+        message: "Invalid webhook signature",
+        code: "INVALID_WEBHOOK_SIGNATURE",
+      });
+    }
+
+    const eventName = String(req.body?.event || "").toLowerCase();
+    if (eventName !== "payment.captured" && eventName !== "order.paid") {
+      return res.status(200).json({ received: true, processed: false, ignoredEvent: eventName });
+    }
+
+    const paymentEntity = req.body?.payload?.payment?.entity;
+    const razorpayOrderId = String(paymentEntity?.order_id || "").trim();
+    const razorpayPaymentId = String(paymentEntity?.id || "").trim();
+    const paymentStatus = String(paymentEntity?.status || "").toLowerCase();
+    const paymentCurrency = String(paymentEntity?.currency || "").toUpperCase();
+    const paymentAmountPaise = Number(paymentEntity?.amount || 0);
+
+    if (!razorpayOrderId || !razorpayPaymentId) {
+      return res.status(400).json({
+        message: "Missing payment identifiers in webhook",
+        code: "INVALID_WEBHOOK_PAYLOAD",
+      });
+    }
+
+    if (paymentStatus !== "captured") {
+      return res.status(200).json({
+        received: true,
+        processed: false,
+        ignoredReason: "payment_not_captured",
+      });
+    }
+
+    const order = await Order.findOne({ razorpayOrderId }).populate("items.product");
+
+    if (!order) {
+      return res.status(200).json({
+        received: true,
+        processed: false,
+        ignoredReason: "order_not_found",
+      });
+    }
+
+    if (order.status !== "PENDING") {
+      if (order.razorpayPaymentId === razorpayPaymentId) {
+        return res.status(200).json({ received: true, processed: true, idempotent: true });
+      }
+
+      return res.status(200).json({
+        received: true,
+        processed: false,
+        ignoredReason: "order_already_processed",
+      });
+    }
+
+    const duplicatePayment = await Order.findOne({
+      _id: { $ne: order._id },
+      razorpayPaymentId,
+    }).select("_id");
+
+    if (duplicatePayment) {
+      return res.status(200).json({
+        received: true,
+        processed: false,
+        ignoredReason: "duplicate_payment_reference",
+      });
+    }
+
+    const expectedAmountPaise = Math.round(Number(order.razorpayAmount || 0) * 100);
+    if (paymentAmountPaise !== expectedAmountPaise) {
+      return res.status(400).json({
+        message: "Payment amount mismatch",
+        code: "PAYMENT_AMOUNT_MISMATCH",
+      });
+    }
+
+    if (paymentCurrency && paymentCurrency !== "INR") {
+      return res.status(400).json({
+        message: "Payment currency mismatch",
+        code: "PAYMENT_CURRENCY_MISMATCH",
+      });
+    }
+
+    await finalizePaidOrder({
+      order,
+      userId: order.user,
+      paymentId: razorpayPaymentId,
+    });
+
+    return res.status(200).json({
+      received: true,
+      processed: true,
+      orderId: order._id,
+      razorpayOrderId,
+      razorpayPaymentId,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      message: "Webhook processing failed",
+      code: "WEBHOOK_PROCESSING_FAILED",
+    });
+  }
+};
+
 /**
  * CREATE PAYMENT ORDER (Checkout - Online / Wallet / Split)
  * POST /api/payment/create-order

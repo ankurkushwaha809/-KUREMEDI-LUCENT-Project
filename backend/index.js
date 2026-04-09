@@ -51,7 +51,15 @@ app.use(cors({
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
-app.use(express.json());
+app.use(
+  express.json({
+    verify: (req, res, buf) => {
+      if (req.originalUrl?.startsWith("/api/payment/webhook")) {
+        req.rawBody = Buffer.from(buf);
+      }
+    },
+  }),
+);
 
 // Test Route
 app.get("/", (req, res) => {

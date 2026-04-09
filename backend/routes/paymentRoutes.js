@@ -5,6 +5,7 @@ import Order from "../model/Order.js";
 import {
   createPaymentOrder,
   getPaymentStatus,
+  handleRazorpayWebhook,
   verifyPayment,
   updateOrderStatus,
 } from "../controllers/payment.controller.js";
@@ -130,6 +131,12 @@ router.get("/orders/:orderId", async (req, res) => {
 router.put("/update-status", updateOrderStatus);
 
 // ============ USER (protected) ============
+
+/**
+ * POST /api/payment/webhook
+ * Razorpay webhook endpoint
+ */
+router.post("/webhook", handleRazorpayWebhook);
 
 /**
  * POST /api/payment/create-order
