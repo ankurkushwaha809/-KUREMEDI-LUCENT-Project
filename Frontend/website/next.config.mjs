@@ -20,7 +20,7 @@ function buildRemotePatterns() {
   const candidates = [
     process.env.NEXT_PUBLIC_UPLOAD_BASE,
     process.env.NEXT_PUBLIC_API_URL,
-    'https://api.kuremedi.com',
+    'https://backend.kuremedi.com',
     'http://localhost:5000',
   ];
 
