@@ -14,19 +14,22 @@ jobs:
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
+          username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd ~
-            if [ ! -d "-KUREMEDI-LUCENT-Project" ]; then
-              git clone https://github.com/ankurkushwaha809/-KUREMEDI-LUCENT-Project.git
-            fi
+            echo "Starting deploy..."
 
-            cd -KUREMEDI-LUCENT-Project
-            git pull origin main
+            cd ~/-KUREMEDI-LUCENT-Project || git clone https://github.com/ankurkushwaha809/-KUREMEDI-LUCENT-Project.git
+            
+            cd ~/-KUREMEDI-LUCENT-Project
+            git fetch origin
+            git reset --hard origin/main
 
             cd backend
             npm install
 
             pm2 restart kuremedi-backend || pm2 start index.js --name kuremedi-backend
             pm2 save
+
+            echo "Deploy finished"
+            pm2 list
