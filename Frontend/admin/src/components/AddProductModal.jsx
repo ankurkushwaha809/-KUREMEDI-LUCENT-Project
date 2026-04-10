@@ -11,6 +11,10 @@ const getProductImageUrl = (path) => {
 };
 
 const MAX_PRODUCT_IMAGES = 6;
+const MAX_IMAGE_FILE_SIZE_MB = 8;
+const MAX_IMAGE_FILE_SIZE_BYTES = MAX_IMAGE_FILE_SIZE_MB * 1024 * 1024;
+const MAX_TOTAL_UPLOAD_SIZE_MB = 20;
+const MAX_TOTAL_UPLOAD_SIZE_BYTES = MAX_TOTAL_UPLOAD_SIZE_MB * 1024 * 1024;
 const ALLOWED_IMAGE_MIME = [
     "image/jpeg",
     "image/jpg",
@@ -197,6 +201,27 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
         const total = imagePreviews.length + files.length;
         if (total > MAX_PRODUCT_IMAGES) {
             setErrorMsg(`Maximum ${MAX_PRODUCT_IMAGES} images allowed.`);
+            e.target.value = "";
+            return;
+        }
+
+        const oversizedFile = files.find((file) => Number(file.size || 0) > MAX_IMAGE_FILE_SIZE_BYTES);
+        if (oversizedFile) {
+            setErrorMsg(
+                `Image \"${oversizedFile.name}\" is too large. Max ${MAX_IMAGE_FILE_SIZE_MB}MB per image.`
+            );
+            e.target.value = "";
+            return;
+        }
+
+        const existingBytes = imageFiles.reduce((sum, file) => sum + Number(file?.size || 0), 0);
+        const selectedBytes = files.reduce((sum, file) => sum + Number(file?.size || 0), 0);
+        const nextTotalBytes = existingBytes + selectedBytes;
+        if (nextTotalBytes > MAX_TOTAL_UPLOAD_SIZE_BYTES) {
+            setErrorMsg(
+                `Total upload size is too large. Keep all selected images under ${MAX_TOTAL_UPLOAD_SIZE_MB}MB in total.`
+            );
+            e.target.value = "";
             return;
         }
         setErrorMsg("");
@@ -283,6 +308,15 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
             setErrorMsg(errs.join("\n"));
             return;
         }
+
+        const totalBytes = imageFiles.reduce((sum, file) => sum + Number(file?.size || 0), 0);
+        if (!productId && totalBytes > MAX_TOTAL_UPLOAD_SIZE_BYTES) {
+            setErrorMsg(
+                `Selected images exceed upload limit (${MAX_TOTAL_UPLOAD_SIZE_MB}MB total). Please use smaller images.`
+            );
+            return;
+        }
+
         setLoading(true);
         try {
             const fd = buildFormData();
@@ -299,8 +333,10 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
             }, 1000);
         } catch (error) {
             const errorMessage = getErrorMessage(error);
-            if (/network error/i.test(errorMessage)) {
-                setErrorMsg("Upload failed. Check internet and image size, then try again.");
+            if (/(network|cors).+error/i.test(errorMessage)) {
+                setErrorMsg(
+                    `Upload failed before API response. Try smaller images (${MAX_IMAGE_FILE_SIZE_MB}MB each, ${MAX_TOTAL_UPLOAD_SIZE_MB}MB total), then retry.`
+                );
             } else {
                 setErrorMsg(errorMessage);
             }
