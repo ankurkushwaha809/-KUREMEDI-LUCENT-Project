@@ -1,10 +1,19 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useContextApi } from "../hooks/useContextApi";
 import { useNavigate } from "react-router-dom";
 
 const AdminLogin = () => {
   const { loginuser, getAdminForgotSecurityQuestions, verifyAdminForgotSecurityAnswers, resetAdminForgotPassword } = useContextApi();
   const navigate = useNavigate();
+
+  // ✅ Check if user is already authenticated on mount and page load
+  useEffect(() => {
+    const token = localStorage.getItem("adminToken");
+    if (token) {
+      // User is already logged in, redirect to dashboard
+      navigate("/", { replace: true });
+    }
+  }, [navigate]);
 
   // 🔥 Form State
   const [formData, setFormData] = useState({
