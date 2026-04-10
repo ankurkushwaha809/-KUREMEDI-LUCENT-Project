@@ -1,27 +1,44 @@
 name: Deploy Node Backend to EC2
 
 on:
-  push:
-    branches:
-      - main
+push:
+branches:
+- main
 
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
+deploy:
+runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+```
+steps:
+  - name: Checkout Code
+    uses: actions/checkout@v3
 
-      - name: Deploy to EC2 via SSH
-        uses: appleboy/ssh-action@v0.1.6
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            cd -- /home/ubuntu/-KUREMEDI-LUCENT-Project/backend
-            git pull origin main
-            npm install
-            pm2 restart backend || pm2 start index.js --name backend
-            pm2 save
+  - name: Deploy to EC2 via SSH
+    uses: appleboy/ssh-action@v0.1.6
+    with:
+      host: ${{ secrets.EC2_HOST }}
+      username: ${{ secrets.EC2_USER }}
+      key: ${{ secrets.EC2_SSH_KEY }}
+      script: |
+        set -e
+
+        echo "Go to backend folder"
+        cd /home/ubuntu/-KUREMEDI-LUCENT-Project/backend
+
+        echo "Pull latest code"
+        git fetch origin main
+        git reset --hard origin/main
+
+        echo "Install dependencies"
+        npm ci --only=production
+
+        echo "Reload PM2 (zero downtime)"
+        pm2 reload backend || pm2 start index.js --name backend
+
+        echo "Save PM2"
+        pm2 save
+
+        echo "Deployment finished"
+```
+
