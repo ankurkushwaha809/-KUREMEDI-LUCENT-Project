@@ -302,7 +302,7 @@ export default function CheckoutPage() {
     try {
       const sanitizeResult = await sanitizeCartBeforeCheckout();
       if (sanitizeResult.changed && sanitizeResult.latestCount === 0) {
-        showToast("Some products were removed from your cart. Please review and try again.", "error");
+        showToast("Your cart changed due to stock updates. Please review cart and try again.", "error");
         router.push("/cart");
         return;
       }

@@ -1002,21 +1002,35 @@ export const updateOrderStatus = async (req, res) => {
       }
 
       // When admin marks as DISPATCHED (ship), assign AWB then label, manifest, pickup
-      if (fields.status === "DISPATCHED" && order.shiprocketShipmentId && !order.shiprocketAwb) {
+      const hasAwb = Boolean(String(order.shiprocketAwb || "").trim());
+      if (fields.status === "DISPATCHED" && order.shiprocketShipmentId && !hasAwb) {
         try {
-          let awbRes = await generateAWB(order.shiprocketShipmentId);
+          const normalizedShipmentId = String(order.shiprocketShipmentId).split(",")[0].trim();
+          let awbRes = await generateAWB(normalizedShipmentId);
           if (Array.isArray(awbRes) && awbRes.length) awbRes = awbRes[0];
 
           const readAwbFromKnownKeys = (payload) => {
             const direct = [
               payload?.awb_code,
               payload?.awb,
+              payload?.awbCode,
+              payload?.awb_number,
               payload?.data?.awb_code,
               payload?.data?.awb,
+              payload?.data?.awbCode,
+              payload?.data?.awb_number,
+              payload?.data?.awb_assignments?.[0]?.awb_code,
+              payload?.data?.awb_assignement_details?.[0]?.awb,
               payload?.response?.awb_code,
               payload?.response?.awb,
+              payload?.response?.awbCode,
+              payload?.response?.awb_number,
               payload?.response?.data?.awb_code,
               payload?.response?.data?.awb,
+              payload?.response?.data?.awbCode,
+              payload?.response?.data?.awb_number,
+              payload?.response?.data?.awb_assignments?.[0]?.awb_code,
+              payload?.response?.data?.awb_assignement_details?.[0]?.awb,
             ].find((v) => typeof v === "string" || typeof v === "number");
             if (direct != null && String(direct).trim()) return String(direct).trim();
 
@@ -1045,21 +1059,24 @@ export const updateOrderStatus = async (req, res) => {
             order.trackingUrl =
               awbRes?.tracking_url ??
               awbRes?.tracking ??
+              awbRes?.data?.tracking_url ??
+              awbRes?.response?.tracking_url ??
+              awbRes?.response?.data?.tracking_url ??
               awbRes?.tracking_url_short ??
               `https://shiprocket.co/tracking/${encodeURIComponent(awbCode)}`;
 
             // After AWB: generate label, manifest, schedule pickup
             try {
-              const labelRes = await generateLabel(order.shiprocketShipmentId);
+              const labelRes = await generateLabel(normalizedShipmentId);
               if (labelRes?.label_url) order.shiprocketLabelUrl = labelRes.label_url;
             } catch (labelErr) {
             }
             try {
-              await generateManifest(order.shiprocketShipmentId);
+              await generateManifest(normalizedShipmentId);
             } catch (manifestErr) {
             }
             try {
-              await schedulePickup(order.shiprocketShipmentId);
+              await schedulePickup(normalizedShipmentId);
             } catch (pickupErr) {
             }
           } else {
