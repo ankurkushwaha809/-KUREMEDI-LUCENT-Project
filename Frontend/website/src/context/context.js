@@ -12,6 +12,14 @@ export const useAppContext = () => {
   return context;
 };
 
+export const useOptionalAppContext = () => {
+  try {
+    return useContext(AppContext) || null;
+  } catch {
+    return null;
+  }
+};
+
 function mapCartItem(item) {
   const p = item?.product;
   if (!p?._id) return null;

@@ -3,13 +3,16 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ShieldAlert, X } from 'lucide-react';
-import { useAppContext } from '@/context/context';
+import { useOptionalAppContext } from '@/context/context';
 
 const DISMISS_KEY = 'kyc-prompt-dismissed-at';
 const REMIND_AFTER_MS = 30 * 1000;
 
 export default function GlobalKycPendingBanner() {
-  const { token, user, refreshUser } = useAppContext();
+  const appContext = useOptionalAppContext();
+  const token = appContext?.token || null;
+  const user = appContext?.user || null;
+  const refreshUser = appContext?.refreshUser;
   const [dismissedAt, setDismissedAt] = useState(null);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -76,6 +79,7 @@ export default function GlobalKycPendingBanner() {
   const promptTitle = 'Please complete KYC first';
   const promptMessage = 'Your account needs KYC completion before you can continue smoothly.';
 
+  if (!appContext) return null;
   if (!token || (!isBlank && !isPending && !isRejected && !isBlocked)) return null;
 
   return (
