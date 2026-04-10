@@ -15,6 +15,10 @@ const MAX_IMAGE_FILE_SIZE_MB = 10;
 const MAX_IMAGE_FILE_SIZE_BYTES = MAX_IMAGE_FILE_SIZE_MB * 1024 * 1024;
 const MAX_TOTAL_UPLOAD_SIZE_MB = 60;
 const MAX_TOTAL_UPLOAD_SIZE_BYTES = MAX_TOTAL_UPLOAD_SIZE_MB * 1024 * 1024;
+const MAX_RAW_IMAGE_FILE_SIZE_MB = 20;
+const MAX_RAW_IMAGE_FILE_SIZE_BYTES = MAX_RAW_IMAGE_FILE_SIZE_MB * 1024 * 1024;
+const IMAGE_MAX_DIMENSION = 1600;
+const IMAGE_COMPRESS_QUALITY = 0.8;
 const ALLOWED_IMAGE_MIME = [
     "image/jpeg",
     "image/jpg",
@@ -24,6 +28,64 @@ const ALLOWED_IMAGE_MIME = [
     "image/heic",
     "image/heif",
 ];
+
+const readFileAsDataUrl = (file) =>
+    new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+
+const loadImageElement = (src) =>
+    new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+    });
+
+const canvasToBlob = (canvas, type, quality) =>
+    new Promise((resolve) => {
+        canvas.toBlob((blob) => resolve(blob), type, quality);
+    });
+
+const compressImageForUpload = async (file) => {
+    const mime = String(file?.type || "").toLowerCase();
+    if (!mime.startsWith("image/")) return file;
+    if (mime === "image/gif" || mime === "image/heic" || mime === "image/heif") return file;
+
+    try {
+        const dataUrl = await readFileAsDataUrl(file);
+        const image = await loadImageElement(dataUrl);
+        const width = Number(image.naturalWidth || image.width || 0);
+        const height = Number(image.naturalHeight || image.height || 0);
+        if (!width || !height) return file;
+
+        const scale = Math.min(1, IMAGE_MAX_DIMENSION / Math.max(width, height));
+        const targetWidth = Math.max(1, Math.round(width * scale));
+        const targetHeight = Math.max(1, Math.round(height * scale));
+
+        const canvas = document.createElement("canvas");
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return file;
+
+        ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+        const compressedBlob = await canvasToBlob(canvas, "image/jpeg", IMAGE_COMPRESS_QUALITY);
+        if (!compressedBlob || compressedBlob.size >= file.size) return file;
+
+        const nextName = String(file.name || "image").replace(/\.[^.]+$/, "") + ".jpg";
+        return new File([compressedBlob], nextName, {
+            type: "image/jpeg",
+            lastModified: Date.now(),
+        });
+    } catch {
+        return file;
+    }
+};
 
 const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
     const {
@@ -42,6 +104,7 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
     const [imagePreviews, setImagePreviews] = useState([]);
     const [errorMsg, setErrorMsg] = useState("");
     const [successMsg, setSuccessMsg] = useState("");
+    const [isOptimizingImages, setIsOptimizingImages] = useState(false);
 
     const [formData, setFormData] = useState({
         productName: "",
@@ -187,7 +250,7 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
         });
     };
 
-    const handleImageUpload = (e) => {
+    const handleImageUpload = async (e) => {
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
 
@@ -205,7 +268,20 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
             return;
         }
 
-        const oversizedFile = files.find((file) => Number(file.size || 0) > MAX_IMAGE_FILE_SIZE_BYTES);
+        const tooLargeRawFile = files.find((file) => Number(file.size || 0) > MAX_RAW_IMAGE_FILE_SIZE_BYTES);
+        if (tooLargeRawFile) {
+            setErrorMsg(
+                `Image \"${tooLargeRawFile.name}\" is too large. Keep each image under ${MAX_RAW_IMAGE_FILE_SIZE_MB}MB.`
+            );
+            e.target.value = "";
+            return;
+        }
+
+        setIsOptimizingImages(true);
+        const processedFiles = await Promise.all(files.map((file) => compressImageForUpload(file)));
+        setIsOptimizingImages(false);
+
+        const oversizedFile = processedFiles.find((file) => Number(file.size || 0) > MAX_IMAGE_FILE_SIZE_BYTES);
         if (oversizedFile) {
             setErrorMsg(
                 `Image \"${oversizedFile.name}\" is too large. Max ${MAX_IMAGE_FILE_SIZE_MB}MB per image.`
@@ -215,7 +291,7 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
         }
 
         const existingBytes = imageFiles.reduce((sum, file) => sum + Number(file?.size || 0), 0);
-        const selectedBytes = files.reduce((sum, file) => sum + Number(file?.size || 0), 0);
+        const selectedBytes = processedFiles.reduce((sum, file) => sum + Number(file?.size || 0), 0);
         const nextTotalBytes = existingBytes + selectedBytes;
         if (nextTotalBytes > MAX_TOTAL_UPLOAD_SIZE_BYTES) {
             setErrorMsg(
@@ -225,8 +301,8 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
             return;
         }
         setErrorMsg("");
-        const newPreviews = files.map((f) => URL.createObjectURL(f));
-        setImageFiles((prev) => [...prev, ...files]);
+        const newPreviews = processedFiles.map((f) => URL.createObjectURL(f));
+        setImageFiles((prev) => [...prev, ...processedFiles]);
         setImagePreviews((prev) => [...prev, ...newPreviews]);
         e.target.value = "";
     };
@@ -400,6 +476,9 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
                     <div className="space-y-4">
                         <div className="space-y-2">
                             <label className="block text-sm font-medium text-gray-700">Product Images (max 6)</label>
+                            {isOptimizingImages ? (
+                                <p className="text-xs text-blue-600">Optimizing selected images for upload...</p>
+                            ) : null}
                             <div className="grid grid-cols-3 gap-2 mb-2">
                                 {Array.from({ length: 6 }).map((_, idx) => {
                                     if (allPreviews[idx]) {
