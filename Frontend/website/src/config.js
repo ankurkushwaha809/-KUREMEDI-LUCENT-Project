@@ -14,6 +14,16 @@ API_BASE = API_BASE.replace("https:/.kuremedi.com", "https://backend.kuremedi.co
 API_BASE = API_BASE.replace("https:/.kuremcdi.com", "https://backend.kuremedi.com");
 API_BASE = API_BASE.replace("backend.kuremcdi.com", "backend.kuremedi.com"); // Fix typo variant
 
+// Protect production builds from misconfigured env values like localhost API.
+if (!isDevelopment && /https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(API_BASE)) {
+  API_BASE = "https://backend.kuremedi.com/api";
+}
+
+// Ensure API path consistently ends with /api
+if (!/\/api\/?$/i.test(API_BASE)) {
+  API_BASE = API_BASE.replace(/\/+$/, "") + "/api";
+}
+
 export const API_BASE_URL = API_BASE;
 // If API is relative (/api), uploads should also be relative (/uploads).
 // If API is absolute, drop trailing /api so uploads use same backend host.

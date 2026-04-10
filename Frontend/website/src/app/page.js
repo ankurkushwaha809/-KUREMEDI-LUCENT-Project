@@ -161,13 +161,25 @@ const HomePage = () => {
           getProducts(),
           getMarketingBanners(),
         ]);
-        if (catRes?.success && Array.isArray(catRes.data)) setCategories(catRes.data);
-        if (brandRes?.success && Array.isArray(brandRes.data)) setBrands(brandRes.data);
-        if (prodRes?.success && Array.isArray(prodRes.data)) {
-          setProducts(prodRes.data);
-        } else if (Array.isArray(prodRes)) {
-          setProducts(prodRes);
-        }
+        const categoriesList = Array.isArray(catRes?.data)
+          ? catRes.data
+          : Array.isArray(catRes)
+            ? catRes
+            : [];
+        const brandsList = Array.isArray(brandRes?.data)
+          ? brandRes.data
+          : Array.isArray(brandRes)
+            ? brandRes
+            : [];
+        const productsList = Array.isArray(prodRes?.data)
+          ? prodRes.data
+          : Array.isArray(prodRes)
+            ? prodRes
+            : [];
+
+        setCategories(categoriesList);
+        setBrands(brandsList);
+        setProducts(productsList);
 
         const activeBanners = Array.isArray(bannerRes?.data)
           ? bannerRes.data
