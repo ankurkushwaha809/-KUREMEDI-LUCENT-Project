@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
-import { X, Plus, Trash2 } from "lucide-react";
+import { X, Plus, Trash2, AlertCircle } from "lucide-react";
 import { useContextApi } from "../hooks/useContextApi";
 import { resolveUploadUrl } from "../lib/baseUrl";
+import { getErrorMessage, logError } from "../utils/errorHandler";
 
 const getProductImageUrl = (path) => {
     if (!path) return "";
@@ -24,6 +25,8 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
     const [imageFiles, setImageFiles] = useState([]);
     const [existingImageUrls, setExistingImageUrls] = useState([]);
     const [imagePreviews, setImagePreviews] = useState([]);
+    const [errorMsg, setErrorMsg] = useState("");
+    const [successMsg, setSuccessMsg] = useState("");
 
     const [formData, setFormData] = useState({
         productName: "",
@@ -174,9 +177,10 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
         if (files.length === 0) return;
         const total = imagePreviews.length + files.length;
         if (total > 6) {
-            alert("Maximum 6 images allowed.");
+            setErrorMsg("Maximum 6 images allowed.");
             return;
         }
+        setErrorMsg("");
         const newPreviews = files.map((f) => URL.createObjectURL(f));
         setImageFiles((prev) => [...prev, ...files]);
         setImagePreviews((prev) => [...prev, ...newPreviews]);
@@ -231,6 +235,9 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
 
     const handleSubmit = async (e) => {
         e?.preventDefault();
+        setErrorMsg("");
+        setSuccessMsg("");
+
         const productName = formData.productName?.trim();
         const sellingPrice = Number(formData.sellingPrice);
         const mrp = Number(formData.mrp);
@@ -254,7 +261,7 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
         if (isNaN(gst) || gst < 0)
             errs.push("GST must be 0 or greater.");
         if (errs.length) {
-            alert(errs.join("\n"));
+            setErrorMsg(errs.join("\n"));
             return;
         }
         setLoading(true);
@@ -262,16 +269,19 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
             const fd = buildFormData();
             if (productId) {
                 await updateProductWithFormData(productId, fd);
-                alert("Product updated successfully!");
+                setSuccessMsg("Product updated successfully!");
             } else {
                 await createProductWithFormData(fd);
-                alert("Product added successfully!");
+                setSuccessMsg("Product added successfully!");
             }
-            if (onSuccess) onSuccess();
-            onClose();
+            setTimeout(() => {
+                if (onSuccess) onSuccess();
+                onClose();
+            }, 1000);
         } catch (error) {
-            console.error("Submit error:", error);
-            alert("Action failed. Please try again.");
+            const errorMessage = getErrorMessage(error);
+            setErrorMsg(errorMessage);
+            logError("Product submission", error);
         } finally {
             setLoading(false);
         }
@@ -297,6 +307,35 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
                         <X size={24} />
                     </button>
                 </div>
+
+                {errorMsg && (
+                    <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+                        <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                            <h3 className="font-semibold text-red-800">Error</h3>
+                            <p className="text-red-700 text-sm mt-1 whitespace-pre-wrap">{errorMsg}</p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setErrorMsg("")}
+                            className="text-red-600 hover:text-red-800 mt-1"
+                        >
+                            <X size={18} />
+                        </button>
+                    </div>
+                )}
+
+                {successMsg && (
+                    <div className="mx-6 mt-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
+                        <div className="w-5 h-5 rounded-full bg-green-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <span className="text-white text-xs font-bold">✓</span>
+                        </div>
+                        <div className="flex-1">
+                            <h3 className="font-semibold text-green-800">Success</h3>
+                            <p className="text-green-700 text-sm mt-1">{successMsg}</p>
+                        </div>
+                    </div>
+                )}
 
                 <form onSubmit={handleSubmit} className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-4">
