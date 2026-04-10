@@ -13,7 +13,7 @@
       "env": {
         "NODE_VERSION": "20",
         "NPM_CONFIG_LEGACY_PEER_DEPS": "1",
-        "EXPO_PUBLIC_API_URL": "https://backend.kuremedi.com/api"
+        "EXPO_PUBLIC_API_URL": "http://13.127.14.35:5000/api"
       }
     },
     "preview": {
@@ -24,7 +24,7 @@
       "env": {
         "NODE_VERSION": "20",
         "NPM_CONFIG_LEGACY_PEER_DEPS": "1",
-        "EXPO_PUBLIC_API_URL": "https://backend.kuremedi.com/api"
+        "EXPO_PUBLIC_API_URL": "http://13.127.14.35:5000/api"
       }
     },
     "production": {
@@ -35,7 +35,7 @@
       "env": {
         "NODE_VERSION": "20",
         "NPM_CONFIG_LEGACY_PEER_DEPS": "1",
-        "EXPO_PUBLIC_API_URL": "https://backend.kuremedi.com/api"
+        "EXPO_PUBLIC_API_URL": "http://13.127.14.35:5000/api"
       }
     }
   },
