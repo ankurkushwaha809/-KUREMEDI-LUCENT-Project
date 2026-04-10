@@ -2,6 +2,11 @@ import { API_BASE_URL } from "../config";
 
 const getToken = () => (typeof window !== "undefined" ? localStorage.getItem("token") : null);
 
+function buildAuthHeader() {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 function forceLogoutIfBlocked(status, data) {
   if (typeof window === "undefined") return;
   const hasToken = !!localStorage.getItem("token");
@@ -52,7 +57,7 @@ async function parseResponse(res) {
 export async function apiGet(path) {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
-      Authorization: getToken() ? `Bearer ${getToken()}` : "",
+      ...buildAuthHeader(),
     },
   });
   return parseResponse(res);
@@ -63,7 +68,7 @@ export async function apiPost(path, body) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: getToken() ? `Bearer ${getToken()}` : "",
+      ...buildAuthHeader(),
     },
     body: JSON.stringify(body),
   });
@@ -75,7 +80,7 @@ export async function apiPut(path, body) {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      Authorization: getToken() ? `Bearer ${getToken()}` : "",
+      ...buildAuthHeader(),
     },
     body: JSON.stringify(body),
   });
@@ -86,7 +91,7 @@ export async function apiDelete(path) {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method: "DELETE",
     headers: {
-      Authorization: getToken() ? `Bearer ${getToken()}` : "",
+      ...buildAuthHeader(),
     },
   });
   return parseResponse(res);
