@@ -50,7 +50,6 @@ function buildRemotePatterns() {
 }
 
 const nextConfig = {
-  outputFileTracingRoot: workspaceRoot,
   turbopack: {
     root: workspaceRoot,
   },

@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useOptionalAppContext } from '@/context/context';
+import { useAppContext } from '@/context/context';
 import { ClipboardList, Heart, ShoppingCart, User, Settings, ChevronDown, X } from 'lucide-react';
 import Image from 'next/image';
 import * as api from '@/api';
@@ -14,11 +14,7 @@ export default function Header() {
     const [orderHistory, setOrderHistory] = useState([]);
     const [orderHistoryLoading, setOrderHistoryLoading] = useState(false);
     const [orderHistoryError, setOrderHistoryError] = useState('');
-    const appContext = useOptionalAppContext();
-    const cartItems = appContext?.cartItems || [];
-    const wishlistItems = appContext?.wishlistItems || [];
-    const user = appContext?.user || null;
-    const token = appContext?.token || null;
+    const { cartItems, wishlistItems, user, token } = useAppContext();
     const cartCount = cartItems?.reduce((s, i) => s + (i.qty || 0), 0) ?? 0;
     const wishlistCount = wishlistItems?.length ?? 0;
 
