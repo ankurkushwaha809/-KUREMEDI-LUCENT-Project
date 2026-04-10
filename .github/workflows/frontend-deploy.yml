@@ -28,8 +28,10 @@ jobs:
             cd Frontend/admin
             npm install
             npm run build
-            pm2 delete admin || true
-            pm2 start "npm run preview -- --port 3001" --name admin
+
+            sudo rm -rf /var/www/admin
+            sudo mkdir -p /var/www/admin
+            sudo cp -r dist/* /var/www/admin/
 
             echo "Building website..."
             cd ../website
