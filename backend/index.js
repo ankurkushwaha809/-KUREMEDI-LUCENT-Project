@@ -88,13 +88,8 @@ app.use("/api/agents", agentRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/marketing", marketingRoutes);
 
-// Error handler (e.g. multer LIMIT_FILE_SIZE) – must have 4 args
+// Error handler – must have 4 args
 app.use((err, req, res, next) => {
-  if (err.code === "LIMIT_FILE_SIZE") {
-    return res
-      .status(413)
-      .json({ message: "File too large. Max 5MB per file." });
-  }
   if (err.code === "LIMIT_UNEXPECTED_FILE") {
     return res.status(400).json({ message: "Unexpected file field" });
   }

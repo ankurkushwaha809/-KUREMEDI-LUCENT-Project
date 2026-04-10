@@ -9,4 +9,4 @@
 #    client_max_body_size 20M;
 # 3. Reload nginx: sudo nginx -t && sudo systemctl reload nginx
 
-client_max_body_size 20M;
+client_max_body_size 0;

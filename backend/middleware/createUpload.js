@@ -1,7 +1,7 @@
 import multer from "multer";
 import fs from "fs";
 
-export const createUploadMiddleware = (uploadDir, fileSize = 5 * 1024 * 1024, fileFilter = null) => {
+export const createUploadMiddleware = (uploadDir, fileFilter = null) => {
   if (!fs.existsSync("uploads")) fs.mkdirSync("uploads", { recursive: true });
   if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -13,7 +13,7 @@ export const createUploadMiddleware = (uploadDir, fileSize = 5 * 1024 * 1024, fi
     },
   });
 
-  const config = { storage, limits: { fileSize } };
+  const config = { storage };
   if (fileFilter) config.fileFilter = fileFilter;
 
   return multer(config);
@@ -21,7 +21,6 @@ export const createUploadMiddleware = (uploadDir, fileSize = 5 * 1024 * 1024, fi
 
 export const productUpload = createUploadMiddleware(
   "uploads/products",
-  5 * 1024 * 1024,
   (req, file, cb) => {
     const allowed = /jpeg|jpg|png|webp|gif/i;
     const ext = (file.mimetype || "").split("/")[1];
@@ -33,6 +32,6 @@ export const productUpload = createUploadMiddleware(
   }
 );
 
-export const brandUpload = createUploadMiddleware("uploads/brands", 2 * 1024 * 1024);
-export const categoryUpload = createUploadMiddleware("uploads/categories", 5 * 1024 * 1024);
-export const bannerUpload = createUploadMiddleware("uploads/banners", 5 * 1024 * 1024);
+export const brandUpload = createUploadMiddleware("uploads/brands");
+export const categoryUpload = createUploadMiddleware("uploads/categories");
+export const bannerUpload = createUploadMiddleware("uploads/banners");
