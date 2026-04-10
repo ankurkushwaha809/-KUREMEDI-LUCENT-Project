@@ -57,7 +57,7 @@ const SIDEBAR_WIDTH = 288; // 18rem = 288px (w-72)
 const Dashboard = () => {
   const { activeTab, setActiveTab, getMyProfile } = useContextApi();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [isPrimaryAdmin, setIsPrimaryAdmin] = useState(false);
 
   useEffect(() => {
@@ -78,7 +78,7 @@ const Dashboard = () => {
     loadProfile();
   }, [getMyProfile]);
 
-  // Sync URL -> activeTab on mount
+  // Sync URL -> activeTab on mount and when URL changes
   useEffect(() => {
     const tabFromUrl = searchParams.get("tab");
     if (tabFromUrl) {
@@ -89,6 +89,17 @@ const Dashboard = () => {
       }
     }
   }, [searchParams, setActiveTab, isPrimaryAdmin]);
+
+  // Keep URL in sync with activeTab whenever activeTab changes
+  useEffect(() => {
+    const tabFromUrl = searchParams.get("tab");
+    if (activeTab && activeTab !== "Home" && activeTab !== tabFromUrl) {
+      setSearchParams({ tab: activeTab });
+    } else if (activeTab === "Home" && tabFromUrl) {
+      // Clear search params if tab is Home (default)
+      setSearchParams({});
+    }
+  }, [activeTab, setSearchParams, searchParams]);
 
   const renderPage = () => {
     switch (activeTab) {
