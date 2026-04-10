@@ -23,7 +23,7 @@ async function run() {
     await mongoose.connect(process.env.MONGO_URI, options);
 
     const configuredPrimary = String(
-      process.env.PRIMARY_ADMIN_EMAIL || "ankurkushwaha237@gmail.com"
+      process.env.PRIMARY_ADMIN_EMAIL || "kuremedi370@gmail.com"
     )
       .trim()
       .toLowerCase();

@@ -44,7 +44,7 @@ const generateToken = (payload, expiresIn = "7d") =>
 const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
 const normalizePhone = (value) => String(value || "").trim();
 const PRIMARY_ADMIN_EMAIL = normalizeEmail(
-  process.env.PRIMARY_ADMIN_EMAIL || "ankurkushwaha237@gmail.com"
+  process.env.PRIMARY_ADMIN_EMAIL || "kuremedi370@gmail.com"
 );
 const ADMIN_SECURITY_QUESTION_OPTIONS = [
   "What was the name of your first school?",

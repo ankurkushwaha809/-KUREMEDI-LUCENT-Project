@@ -53,7 +53,7 @@ export default function SettingsPage() {
 
   const [admins, setAdmins] = useState([]);
   const [currentAdminEmail, setCurrentAdminEmail] = useState("");
-  const [primaryAdminEmail, setPrimaryAdminEmail] = useState("ankurkushwaha237@gmail.com");
+  const [primaryAdminEmail, setPrimaryAdminEmail] = useState("kuremedi370@gmail.com");
   const [isPrimaryAdmin, setIsPrimaryAdmin] = useState(false);
   const [accessGranted, setAccessGranted] = useState(false);
   const [accessPassword, setAccessPassword] = useState("");
@@ -359,7 +359,7 @@ export default function SettingsPage() {
           Admin Email ID: <span className="font-semibold">{currentAdminEmail || "Not available"}</span>
         </p>
         <p className="text-sm text-gray-700 mt-1">
-          Primary Admin Email: <span className="font-semibold">{primaryAdminEmail || "ankurkushwaha237@gmail.com"}</span>
+          Primary Admin Email: <span className="font-semibold">{primaryAdminEmail || "kuremedi370@gmail.com"}</span>
         </p>
       </div>
 
