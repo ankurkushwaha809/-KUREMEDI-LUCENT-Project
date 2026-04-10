@@ -1,0 +1,46 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to Frontend EC2
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.FRONTEND_HOST }}
+          username: ${{ secrets.FRONTEND_USER }}
+          key: ${{ secrets.FRONTEND_SSH_KEY }}
+          script: |
+            echo "Starting frontend deploy"
+
+            cd ~
+            if [ ! -d "-KUREMEDI-LUCENT-Project" ]; then
+              git clone https://github.com/ankurkushwaha809/-KUREMEDI-LUCENT-Project.git
+            fi
+
+            cd -KUREMEDI-LUCENT-Project
+            git fetch origin
+            git reset --hard origin/main
+
+            echo "Building Website"
+            cd Frontend/website
+            npm install
+            npm run build
+            pm2 restart website || pm2 start npm --name website -- start
+
+            echo "Building Admin"
+            cd ../admin
+            pnpm install
+            pnpm build
+            pm2 restart admin || pm2 start "npx serve -s dist -l 3001" --name admin
+
+            pm2 save
+            pm2 list
+
+            echo "Frontend deployed"
