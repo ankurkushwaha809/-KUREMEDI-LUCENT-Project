@@ -1,4 +1,4 @@
-name: Frontend CI/CD
+name: frontend cicd
 
 on:
   push:
@@ -10,40 +10,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy Frontend to EC2
-        uses: appleboy/ssh-action@v1
+      - name: Deploy frontend
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.FRONTEND_HOST }}
-          username: ${{ secrets.FRONTEND_USER }}
+          username: ubuntu
           key: ${{ secrets.FRONTEND_SSH_KEY }}
           script: |
-            echo "Starting frontend deploy"
+            cd ~/-KUREMEDI-LUCENT-Project
+            git pull
 
-            cd ~
-
-            if [ ! -d "-KUREMEDI-LUCENT-Project" ]; then
-              git clone https://github.com/ankurkushwaha809/-KUREMEDI-LUCENT-Project.git
-            fi
-
-            cd -KUREMEDI-LUCENT-Project
-            git fetch origin
-            git reset --hard origin/main
-
-            echo "Deploy Website"
-            cd Frontend/website
+            echo "Admin build"
+            cd Frontend/admin
             npm install
             npm run build
-            pm2 delete website || true
-            pm2 start npm --name website --cwd $(pwd) -- start
+            pm2 restart admin
 
-            echo "Deploy Admin"
-            cd ../admin
-            pnpm install
-            pnpm build
-            pm2 delete admin || true
-            pm2 start npm --name admin --cwd $(pwd) -- start -- --host 0.0.0.0
+            echo "Website build"
+            cd ../website
+            npm install
+            npm run build
+            pm2 restart website
 
             pm2 save
-            pm2 list
-
-            echo "Frontend deploy complete"
