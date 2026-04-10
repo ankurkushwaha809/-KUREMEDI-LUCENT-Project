@@ -4,8 +4,11 @@ const processEnv: Record<string, string> | undefined =
     : undefined;
 
 // API: EXPO_PUBLIC_API_URL (full URL). Default points to configured API.
-const DEFAULT_API_URL = "http://13.127.14.35:5000/api";
-const FALLBACK_API_URLS = ["http://13.127.14.35:5000/api"];
+// Previous IP endpoint:
+// const DEFAULT_API_URL = "http://13.127.14.35:5000/api";
+// const FALLBACK_API_URLS = ["http://13.127.14.35:5000/api"];
+const DEFAULT_API_URL = "https://backend.kuremedi.com/api";
+const FALLBACK_API_URLS = ["https://backend.kuremedi.com/api"];
 
 const getBaseUrl = (): string => {
   const envUrl = processEnv?.EXPO_PUBLIC_API_URL;
