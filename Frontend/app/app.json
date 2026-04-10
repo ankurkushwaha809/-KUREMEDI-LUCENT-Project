@@ -31,6 +31,7 @@
       "bundler": "metro"
     },
     "plugins": [
+      "expo-notifications",
       [
         "expo-splash-screen",
         {
