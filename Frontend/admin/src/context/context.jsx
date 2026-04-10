@@ -2,8 +2,32 @@ import { useState } from "react";
 import axios from "axios";
 import { ContextApi } from "./contextApi";
 import { ADMIN_API_BASE_URL, ADMIN_UPLOAD_BASE_URL } from "../lib/baseUrl";
+import { getErrorMessage } from "../utils/errorHandler";
 
 const BASE_URL = ADMIN_API_BASE_URL;
+
+// Attach interceptor once to normalize axios errors across the admin app.
+let adminAxiosInterceptorAttached = false;
+if (!adminAxiosInterceptorAttached) {
+  axios.defaults.timeout = 45000;
+  axios.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      const friendly = getErrorMessage(error);
+      if (!error.response) {
+        error.response = { data: { message: friendly } };
+      } else if (!error.response.data) {
+        error.response.data = { message: friendly };
+      } else if (!error.response.data.message) {
+        error.response.data.message = friendly;
+      }
+      error.userMessage = friendly;
+      error.message = friendly;
+      return Promise.reject(error);
+    }
+  );
+  adminAxiosInterceptorAttached = true;
+}
 
 export const ContextProvider = ({ children }) => {
 

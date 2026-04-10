@@ -28,12 +28,15 @@ export const createUploadMiddleware = (uploadDir, fileFilter = null) => {
 export const productUpload = createUploadMiddleware(
   "uploads/products",
   (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|webp|gif/i;
-    const ext = (file.mimetype || "").split("/")[1];
-    if (allowed.test(ext || file.originalname)) {
+    const mime = String(file.mimetype || "").toLowerCase();
+    const original = String(file.originalname || "").toLowerCase();
+    const allowedMime = /image\/(jpeg|jpg|png|webp|gif|heic|heif)/i;
+    const allowedExt = /\.(jpeg|jpg|png|webp|gif|heic|heif)$/i;
+
+    if (allowedMime.test(mime) || allowedExt.test(original)) {
       cb(null, true);
     } else {
-      cb(new Error("Only image files (jpeg, jpg, png, webp, gif) allowed"));
+      cb(new Error("Only image files (jpeg, jpg, png, webp, gif, heic, heif) are allowed"));
     }
   }
 );

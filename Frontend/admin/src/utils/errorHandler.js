@@ -69,7 +69,7 @@ export const getErrorMessage = (error) => {
   }
 
   if (error.message?.includes("Network") || error.message?.includes("network")) {
-    return "Network Error: Unable to connect to the server. Please check your internet connection.";
+    return "Network or CORS Error: Could not reach API server. Check internet, API domain, and upload size limits.";
   }
 
   // Custom error message

@@ -10,6 +10,19 @@ const getProductImageUrl = (path) => {
     return resolveUploadUrl(path);
 };
 
+const MAX_PRODUCT_IMAGES = 6;
+const MAX_IMAGE_SIZE_MB = 8;
+const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
+const ALLOWED_IMAGE_MIME = [
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "image/heic",
+    "image/heif",
+];
+
 const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
     const {
         GetCategoryData,
@@ -175,9 +188,24 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
     const handleImageUpload = (e) => {
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
+
+        const invalidType = files.find((file) => !ALLOWED_IMAGE_MIME.includes(String(file.type || "").toLowerCase()));
+        if (invalidType) {
+            setErrorMsg("Unsupported image format. Use JPG, PNG, WEBP, GIF, HEIC, or HEIF.");
+            e.target.value = "";
+            return;
+        }
+
+        const invalidSize = files.find((file) => Number(file.size || 0) > MAX_IMAGE_SIZE_BYTES);
+        if (invalidSize) {
+            setErrorMsg(`Image too large. Each image must be ${MAX_IMAGE_SIZE_MB}MB or smaller.`);
+            e.target.value = "";
+            return;
+        }
+
         const total = imagePreviews.length + files.length;
-        if (total > 6) {
-            setErrorMsg("Maximum 6 images allowed.");
+        if (total > MAX_PRODUCT_IMAGES) {
+            setErrorMsg(`Maximum ${MAX_PRODUCT_IMAGES} images allowed.`);
             return;
         }
         setErrorMsg("");
@@ -280,7 +308,11 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
             }, 1000);
         } catch (error) {
             const errorMessage = getErrorMessage(error);
-            setErrorMsg(errorMessage);
+            if (/network error/i.test(errorMessage)) {
+                setErrorMsg("Upload failed. Check internet and image size, then try again.");
+            } else {
+                setErrorMsg(errorMessage);
+            }
             logError("Product submission", error);
         } finally {
             setLoading(false);
@@ -310,7 +342,7 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
 
                 {errorMsg && (
                     <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-                        <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
+                        <AlertCircle size={20} className="text-red-600 shrink-0 mt-0.5" />
                         <div className="flex-1">
                             <h3 className="font-semibold text-red-800">Error</h3>
                             <p className="text-red-700 text-sm mt-1 whitespace-pre-wrap">{errorMsg}</p>
@@ -327,7 +359,7 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
 
                 {successMsg && (
                     <div className="mx-6 mt-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
-                        <div className="w-5 h-5 rounded-full bg-green-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <div className="w-5 h-5 rounded-full bg-green-600 flex items-center justify-center shrink-0 mt-0.5">
                             <span className="text-white text-xs font-bold">✓</span>
                         </div>
                         <div className="flex-1">
@@ -592,7 +624,7 @@ const RichTextField = ({ label, value, onChange, placeholder }) => {
                     onInput={handleInput}
                     onPaste={handlePaste}
                     data-placeholder={placeholder || "Write composition..."}
-                    className="min-h-[90px] max-h-56 overflow-y-auto px-3 py-2 focus:outline-none"
+                    className="min-h-22.5 max-h-56 overflow-y-auto px-3 py-2 focus:outline-none"
                     style={{ whiteSpace: "pre-wrap" }}
                 />
             </div>
