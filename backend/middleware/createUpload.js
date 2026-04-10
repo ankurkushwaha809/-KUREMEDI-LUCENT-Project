@@ -13,7 +13,13 @@ export const createUploadMiddleware = (uploadDir, fileFilter = null) => {
     },
   });
 
-  const config = { storage };
+  const config = {
+    storage,
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB per file
+      files: 10, // Max 10 files per request
+    },
+  };
   if (fileFilter) config.fileFilter = fileFilter;
 
   return multer(config);

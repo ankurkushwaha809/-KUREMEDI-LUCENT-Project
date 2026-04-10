@@ -78,7 +78,9 @@ app.use(cors({
 app.use("/api/payment/webhook", express.raw({ type: "application/json" }));
 
 // Keep regular JSON parsing for all other API routes.
-app.use(express.json());
+// Increased limit to handle product forms with base64 images and metadata
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Test Route
 app.get("/", (req, res) => {

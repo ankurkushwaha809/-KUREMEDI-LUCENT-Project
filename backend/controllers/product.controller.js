@@ -112,9 +112,17 @@ export const createProduct = async (req, res) => {
       return res.status(400).json({ success: false, message: "Brand is required" });
     }
     if (req.files?.length) {
-      data.productImages = await uploadImagesToCloudinary(req.files, {
-        folder: "lucent/products",
-      });
+      try {
+        data.productImages = await uploadImagesToCloudinary(req.files, {
+          folder: "lucent/products",
+        });
+        if (!data.productImages || data.productImages.length === 0) {
+          return res.status(500).json({ success: false, message: "Failed to upload images to cloud storage" });
+        }
+      } catch (uploadError) {
+        console.error("Image upload error:", uploadError);
+        return res.status(500).json({ success: false, message: "Image upload failed: " + uploadError.message });
+      }
     } else if (Array.isArray(req.body.productImages)) {
       data.productImages = req.body.productImages.filter(isKeepableImageValue);
     } else {
@@ -124,7 +132,8 @@ export const createProduct = async (req, res) => {
     await product.populate(["category", "brand"]);
     res.status(201).json(product);
   } catch (error) {
-    res.status(resolveProductErrorStatus(error)).json({ message: error.message });
+    console.error("Product creation error:", error);
+    res.status(resolveProductErrorStatus(error)).json({ success: false, message: error.message });
   }
 };
 
@@ -177,10 +186,18 @@ export const updateProduct = async (req, res) => {
     baseImages = baseImages.filter(isKeepableImageValue);
 
     if (req.files?.length) {
-      const newPaths = await uploadImagesToCloudinary(req.files, {
-        folder: "lucent/products",
-      });
-      data.productImages = [...newPaths, ...baseImages].slice(0, 6);
+      try {
+        const newPaths = await uploadImagesToCloudinary(req.files, {
+          folder: "lucent/products",
+        });
+        if (!newPaths || newPaths.length === 0) {
+          return res.status(500).json({ success: false, message: "Failed to upload images to cloud storage" });
+        }
+        data.productImages = [...newPaths, ...baseImages].slice(0, 6);
+      } catch (uploadError) {
+        console.error("Image upload error:", uploadError);
+        return res.status(500).json({ success: false, message: "Image upload failed: " + uploadError.message });
+      }
     } else if (req.body?.existingProductImages !== undefined) {
       data.productImages = baseImages.slice(0, 6);
     }
@@ -190,7 +207,8 @@ export const updateProduct = async (req, res) => {
     await product.populate(["category", "brand"]);
     res.json(product);
   } catch (error) {
-    res.status(resolveProductErrorStatus(error)).json({ message: error.message });
+    console.error("Product update error:", error);
+    res.status(resolveProductErrorStatus(error)).json({ success: false, message: error.message });
   }
 };
 
