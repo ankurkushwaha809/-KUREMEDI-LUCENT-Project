@@ -1,5 +1,5 @@
 /**
- * Local development API config.
+ * Backend API config.
  */
-export const API_BASE_URL = "http://localhost:5000/api";
-export const API_UPLOAD_BASE = "http://localhost:5000";
+export const API_BASE_URL = "http://13.127.14.35:5000/api";
+export const API_UPLOAD_BASE = "http://13.127.14.35:5000";

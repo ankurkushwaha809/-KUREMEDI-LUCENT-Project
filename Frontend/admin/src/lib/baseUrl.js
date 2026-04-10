@@ -1,4 +1,4 @@
-const rawBase = "http://localhost:5000/api";
+const rawBase = "http://13.127.14.35:5000/api";
 
 export const ADMIN_API_BASE_URL = rawBase;
 export const ADMIN_UPLOAD_BASE_URL = ADMIN_API_BASE_URL.replace(/\/api\/?$/, "");
