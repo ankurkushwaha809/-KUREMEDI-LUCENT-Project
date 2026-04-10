@@ -21,7 +21,9 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd /home/ubuntu/-KUREMEDI-LUCENT-Project/backend
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
             npm install
-            pm2 restart backend || pm2 start index.js --name backend
+            pm2 delete backend || true
+            pm2 start index.js --name backend
             pm2 save
