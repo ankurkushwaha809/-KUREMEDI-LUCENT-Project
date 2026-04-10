@@ -37,6 +37,7 @@ export default function SettingsPage() {
   const [newAdminForm, setNewAdminForm] = useState({
     name: "",
     email: "",
+    phone: "",
     password: "",
   });
   const [emailChangeForm, setEmailChangeForm] = useState({
@@ -446,7 +447,14 @@ export default function SettingsPage() {
               className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-400"
               required
             />
-            {/* Phone field removed */}
+            <input
+              type="tel"
+              placeholder="Phone number"
+              value={newAdminForm.phone}
+              onChange={(e) => setNewAdminForm((prev) => ({ ...prev, phone: e.target.value }))}
+              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              required
+            />
             <input
               type="password"
               placeholder="Password"
@@ -645,6 +653,7 @@ export default function SettingsPage() {
                 <tr className="text-left text-gray-500 border-b">
                   <th className="py-2 pr-3">Name</th>
                   <th className="py-2 pr-3">Email</th>
+                  <th className="py-2 pr-3">Phone</th>
                   <th className="py-2 pr-3">Action</th>
                 </tr>
               </thead>
@@ -653,6 +662,7 @@ export default function SettingsPage() {
                   <tr key={admin._id} className="border-b last:border-b-0">
                     <td className="py-3 pr-3 text-gray-900">{admin.name || "-"}</td>
                     <td className="py-3 pr-3 text-gray-700">{admin.email || "-"}</td>
+                    <td className="py-3 pr-3 text-gray-700">{admin.phone || "-"}</td>
                     <td className="py-3 pr-3">
                       <button
                         type="button"
@@ -668,7 +678,7 @@ export default function SettingsPage() {
                 ))}
                 {admins.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="py-4 text-gray-500">
+                    <td colSpan={4} className="py-4 text-gray-500">
                       No admin users found.
                     </td>
                   </tr>

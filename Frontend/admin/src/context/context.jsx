@@ -713,11 +713,11 @@ export const ContextProvider = ({ children }) => {
     }
   };
 
-  const createAdminUser = async ({ name, email, password }) => {
+  const createAdminUser = async ({ name, email, phone, password }) => {
     try {
       const response = await axios.post(
         `${BASE_URL}/auth/admin/users`,
-        { name, email, password },
+        { name, email, phone, password },
         { headers: { ...getAuthHeaders(), "Content-Type": "application/json" } }
       );
       return response.data;
