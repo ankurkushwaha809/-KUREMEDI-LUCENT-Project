@@ -3,6 +3,70 @@ import { Download, ImagePlus, Plus, Trash2 } from "lucide-react";
 import { useContextApi } from "../../hooks/useContextApi";
 import toast from "react-hot-toast";
 import { resolveUploadUrl } from "../../lib/baseUrl";
+import { getErrorMessage } from "../../utils/errorHandler";
+
+const MAX_BANNER_FILE_MB = 8;
+const MAX_BANNER_FILE_BYTES = MAX_BANNER_FILE_MB * 1024 * 1024;
+const BANNER_MAX_DIMENSION = 1920;
+const BANNER_JPEG_QUALITY = 0.82;
+const ACCEPTED_BANNER_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+
+const readFileAsDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+const loadImageElement = (src) =>
+  new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+
+const canvasToBlob = (canvas, type, quality) =>
+  new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), type, quality);
+  });
+
+const optimizeBannerImage = async (file) => {
+  const mime = String(file?.type || "").toLowerCase();
+  if (!mime.startsWith("image/")) return file;
+  if (mime === "image/gif" || mime === "image/heic" || mime === "image/heif") return file;
+
+  try {
+    const dataUrl = await readFileAsDataUrl(file);
+    const image = await loadImageElement(dataUrl);
+    const width = Number(image.naturalWidth || image.width || 0);
+    const height = Number(image.naturalHeight || image.height || 0);
+    if (!width || !height) return file;
+
+    const scale = Math.min(1, BANNER_MAX_DIMENSION / Math.max(width, height));
+    const targetWidth = Math.max(1, Math.round(width * scale));
+    const targetHeight = Math.max(1, Math.round(height * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+
+    ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
+    const compressedBlob = await canvasToBlob(canvas, "image/jpeg", BANNER_JPEG_QUALITY);
+    if (!compressedBlob || compressedBlob.size >= file.size) return file;
+
+    const nextName = String(file.name || "banner").replace(/\.[^.]+$/, "") + ".jpg";
+    return new File([compressedBlob], nextName, {
+      type: "image/jpeg",
+      lastModified: Date.now(),
+    });
+  } catch {
+    return file;
+  }
+};
 
 const Campaigns = () => {
   const [activeTab, setActiveTab] = useState("Banners");
@@ -23,6 +87,8 @@ const Campaigns = () => {
   const [buttonColor, setButtonColor] = useState("#0f172a");
   const [useProductNameAsTitle, setUseProductNameAsTitle] = useState(true);
   const [products, setProducts] = useState([]);
+  const [bannerError, setBannerError] = useState("");
+  const [processingBannerFile, setProcessingBannerFile] = useState(false);
   const bannerFileInputRef = useRef(null);
 
   const {
@@ -44,7 +110,9 @@ const Campaigns = () => {
       const res = await getMarketingBanners();
       setBanners(Array.isArray(res?.data) ? res.data : []);
     } catch (error) {
-      toast.error(error?.response?.data?.message || "Failed to load banners");
+      const message = getErrorMessage(error);
+      setBannerError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -87,8 +155,43 @@ const Campaigns = () => {
     ? String(selectedProduct.productName || selectedProduct.name || "").trim()
     : title.trim();
 
+  const handleBannerFileChange = async (event) => {
+    setBannerError("");
+    const incomingFile = event.target.files?.[0] || null;
+    if (!incomingFile) {
+      setBannerFile(null);
+      return;
+    }
+
+    const mime = String(incomingFile.type || "").toLowerCase();
+    if (!ACCEPTED_BANNER_TYPES.includes(mime)) {
+      const message = "Unsupported banner format. Use JPG, PNG, or WEBP.";
+      setBannerFile(null);
+      setBannerError(message);
+      toast.error(message);
+      event.target.value = "";
+      return;
+    }
+
+    setProcessingBannerFile(true);
+    const optimizedFile = await optimizeBannerImage(incomingFile);
+    setProcessingBannerFile(false);
+
+    if (Number(optimizedFile.size || 0) > MAX_BANNER_FILE_BYTES) {
+      const message = `Banner image is too large. Keep it under ${MAX_BANNER_FILE_MB}MB.`;
+      setBannerFile(null);
+      setBannerError(message);
+      toast.error(message);
+      event.target.value = "";
+      return;
+    }
+
+    setBannerFile(optimizedFile);
+  };
+
   const handleCreateBanner = async (e) => {
     e.preventDefault();
+    setBannerError("");
     if (!bannerName.trim()) return toast.error("Banner name is required");
     const selectedFile = bannerFile || bannerFileInputRef.current?.files?.[0] || null;
     if (!selectedFile) return toast.error("Please choose an image");
@@ -131,7 +234,9 @@ const Campaigns = () => {
       toast.success("Banner uploaded");
       await loadBanners();
     } catch (error) {
-      toast.error(error?.response?.data?.message || "Upload failed");
+      const message = getErrorMessage(error);
+      setBannerError(message);
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
@@ -142,7 +247,9 @@ const Campaigns = () => {
       await updateMarketingBanner(banner._id, { isActive: !banner.isActive });
       setBanners((prev) => prev.map((b) => (b._id === banner._id ? { ...b, isActive: !b.isActive } : b)));
     } catch (error) {
-      toast.error(error?.response?.data?.message || "Update failed");
+      const message = getErrorMessage(error);
+      setBannerError(message);
+      toast.error(message);
     }
   };
 
@@ -154,7 +261,9 @@ const Campaigns = () => {
       setBanners((prev) => prev.filter((b) => b._id !== id));
       toast.success("Banner deleted");
     } catch (error) {
-      toast.error(error?.response?.data?.message || "Delete failed");
+      const message = getErrorMessage(error);
+      setBannerError(message);
+      toast.error(message);
     }
   };
 
@@ -212,6 +321,11 @@ const Campaigns = () => {
         <div className="space-y-6">
           <form onSubmit={handleCreateBanner} className="bg-white rounded-xl shadow p-5">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Add Website Banner</h2>
+            {bannerError ? (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {bannerError}
+              </div>
+            ) : null}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="md:col-span-2">
                 <label className="text-sm font-medium text-gray-700">Banner Name</label>
@@ -229,13 +343,17 @@ const Campaigns = () => {
                   ref={bannerFileInputRef}
                   type="file"
                   accept="image/*"
-                  onChange={(e) => setBannerFile(e.target.files?.[0] || null)}
+                  onChange={handleBannerFileChange}
                   onClick={(e) => {
                     e.currentTarget.value = "";
                   }}
                   className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
                 />
                 <p className="mt-1 text-xs text-red-500 font-semibold">Recommended banner size: 1920 x 720 (Width x Height)</p>
+                <p className="mt-1 text-xs text-gray-600">Max file size: {MAX_BANNER_FILE_MB}MB</p>
+                {processingBannerFile ? (
+                  <p className="mt-1 text-xs text-blue-600">Optimizing image for faster upload...</p>
+                ) : null}
               </div>
               <div className="flex items-end justify-between border rounded-lg px-3 py-2">
                 <span className="text-sm text-gray-700">Show on website</span>
@@ -388,11 +506,11 @@ const Campaigns = () => {
             <div className="mt-4">
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || processingBannerFile}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-60"
               >
                 <Plus size={16} />
-                {submitting ? "Uploading..." : "Upload Banner"}
+                {processingBannerFile ? "Optimizing..." : submitting ? "Uploading..." : "Upload Banner"}
               </button>
             </div>
           </form>

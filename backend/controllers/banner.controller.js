@@ -40,6 +40,13 @@ const sanitizeColor = (value, fallback) => {
   return fallback;
 };
 
+const resolveBannerErrorStatus = (error) => {
+  const message = String(error?.message || "").toLowerCase();
+  if (message.includes("cloudinary")) return 502;
+  if (message.includes("timeout") || message.includes("econn")) return 504;
+  return 500;
+};
+
 export const getActiveBanners = async (req, res) => {
   try {
     const banners = await Banner.find({ isActive: true }).sort({ createdAt: -1 });
@@ -88,7 +95,11 @@ export const createBanner = async (req, res) => {
 
     res.status(201).json({ success: true, message: "Banner created", banner });
   } catch (error) {
-    res.status(201).json({ success: true, message: "Banner created", banner });
+    console.error("Banner create error:", error);
+    res.status(resolveBannerErrorStatus(error)).json({
+      success: false,
+      message: error?.message || "Failed to create banner",
+    });
   }
 };
 
@@ -139,7 +150,11 @@ export const updateBanner = async (req, res) => {
     await banner.save();
     res.json({ success: true, message: "Banner updated", banner });
   } catch (error) {
-    res.status(500).json({ success: false, message: "Server error" });
+    console.error("Banner update error:", error);
+    res.status(resolveBannerErrorStatus(error)).json({
+      success: false,
+      message: error?.message || "Failed to update banner",
+    });
   }
 };
 

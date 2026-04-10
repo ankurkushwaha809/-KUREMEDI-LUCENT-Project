@@ -69,6 +69,13 @@ export const getErrorMessage = (error) => {
   }
 
   if (error.message?.includes("Network") || error.message?.includes("network")) {
+    const requestUrl = String(error?.config?.url || "").toLowerCase();
+    if (requestUrl.includes("/marketing/banners")) {
+      return "Banner upload failed before server response. Check admin login, image size/format, and API CORS/proxy settings.";
+    }
+    if (requestUrl.includes("/products")) {
+      return "Product upload failed before server response. Try fewer/smaller images and verify API proxy upload limits.";
+    }
     return "Network or CORS Error: Could not reach API server. Check internet, API domain, and upload size limits.";
   }
 
