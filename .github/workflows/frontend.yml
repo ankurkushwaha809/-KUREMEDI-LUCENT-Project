@@ -10,11 +10,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy to Frontend EC2
+      - name: Deploy frontend to EC2
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.FRONTEND_HOST }}
-          username: ${{ secrets.FRONTEND_USER }}
+          username: ubuntu
           key: ${{ secrets.FRONTEND_SSH_KEY }}
           script: |
             echo "Starting frontend deploy"
@@ -28,19 +28,21 @@ jobs:
             git fetch origin
             git reset --hard origin/main
 
-            echo "Building Website"
+            echo "Deploy website"
             cd Frontend/website
+            rm -rf .next
             npm install
             npm run build
-            pm2 restart website || pm2 start npm --name website -- start
+            pm2 delete website || true
+            pm2 start npm --name website -- start
 
-            echo "Building Admin"
+            echo "Deploy admin"
             cd ../admin
+            rm -rf dist
             pnpm install
             pnpm build
-            pm2 restart admin || pm2 start "npx serve -s dist -l 3001" --name admin
+            pm2 delete admin || true
+            pm2 start "npx serve -s dist -l 3001" --name admin
 
             pm2 save
             pm2 list
-
-            echo "Frontend deployed"
