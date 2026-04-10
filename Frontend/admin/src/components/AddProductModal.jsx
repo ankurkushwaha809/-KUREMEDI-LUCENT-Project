@@ -11,8 +11,6 @@ const getProductImageUrl = (path) => {
 };
 
 const MAX_PRODUCT_IMAGES = 6;
-const MAX_IMAGE_SIZE_MB = 8;
-const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
 const ALLOWED_IMAGE_MIME = [
     "image/jpeg",
     "image/jpg",
@@ -192,13 +190,6 @@ const AddProductModal = ({ onClose, onSuccess, productId, product }) => {
         const invalidType = files.find((file) => !ALLOWED_IMAGE_MIME.includes(String(file.type || "").toLowerCase()));
         if (invalidType) {
             setErrorMsg("Unsupported image format. Use JPG, PNG, WEBP, GIF, HEIC, or HEIF.");
-            e.target.value = "";
-            return;
-        }
-
-        const invalidSize = files.find((file) => Number(file.size || 0) > MAX_IMAGE_SIZE_BYTES);
-        if (invalidSize) {
-            setErrorMsg(`Image too large. Each image must be ${MAX_IMAGE_SIZE_MB}MB or smaller.`);
             e.target.value = "";
             return;
         }
