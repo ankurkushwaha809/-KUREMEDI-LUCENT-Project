@@ -97,7 +97,7 @@ export default function Header() {
                                 <span>
                                     <span className="block text-xs text-black font-semibold">Shiprocket Delivery </span>
                                     {/* <span className="inline-flex items-center gap-1 text-sm font-semibold text-gray-900">
-                                        Select Pincode <ChevronDown className="h-4 w-4" />
+                                        Select Pincode <ChevronDown className="h-4 w-4" /> 
                                     </span> */}
                                 </span>
                             </button>
