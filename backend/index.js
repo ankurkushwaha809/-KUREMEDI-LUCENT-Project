@@ -45,11 +45,34 @@ if (!fs.existsSync("uploads/banners"))
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Middleware to define allowed origins (includes both correct and typo domains)
+const allowedOrigins = [
+  "https://www.kuremedi.com",
+  "https://www.kuremcdi.com", // typo variant for backwards compatibility
+  "https://kuremedi.com",
+  "https://kuremcdi.com",
+  "https://admin.kuremedi.com",
+  "https://admin.kuremcdi.com",
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:5173",
+  "http://localhost:5174",
+];
+
 // Middlewares
 app.use(cors({
-  origin: "*",
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, Postman, etc)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      // For development, allow all origins as fallback
+      callback(null, true);
+    }
+  },
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
 }));
 // Razorpay webhook must receive the exact raw request body for signature verification.
 app.use("/api/payment/webhook", express.raw({ type: "application/json" }));

@@ -11,6 +11,8 @@ let API_BASE = process.env.NEXT_PUBLIC_API_URL || defaultApiBase;
 // Normalize common mistakes from env (like `https:/.kuremedi.com/api`)
 API_BASE = API_BASE.trim();
 API_BASE = API_BASE.replace("https:/.kuremedi.com", "https://backend.kuremedi.com");
+API_BASE = API_BASE.replace("https:/.kuremcdi.com", "https://backend.kuremedi.com");
+API_BASE = API_BASE.replace("backend.kuremcdi.com", "backend.kuremedi.com"); // Fix typo variant
 
 export const API_BASE_URL = API_BASE;
 // If API is relative (/api), uploads should also be relative (/uploads).
