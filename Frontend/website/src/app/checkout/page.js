@@ -85,7 +85,6 @@ export default function CheckoutPage() {
   const [useWalletAmount, setUseWalletAmount] = useState(0);
   const [paymentModal, setPaymentModal] = useState(null);
   const [minimumCheckoutAmount, setMinimumCheckoutAmount] = useState(0);
-  const syncingPurchasedItemsRef = useRef(false);
   const completedRazorpayOrdersRef = useRef(new Set());
   const [newAddr, setNewAddr] = useState({
     address: "",
@@ -238,82 +237,6 @@ export default function CheckoutPage() {
     return { changed, latestCount };
   };
 
-  const removeRecentlyPurchasedItemsFromCart = async () => {
-    if (!token || syncingPurchasedItemsRef.current) {
-      return { changed: false, removedCount: 0, latestCount: cartItems?.length || 0 };
-    }
-
-    syncingPurchasedItemsRef.current = true;
-    try {
-      const [ordersRes, cartRes] = await Promise.all([api.getMyOrders(), api.getCart()]);
-      const orders = Array.isArray(ordersRes) ? ordersRes : [];
-      const cartRows = Array.isArray(cartRes?.items) ? cartRes.items : [];
-
-      // Fallback window: treat items from recent successful orders as purchased and remove duplicates from cart.
-      const successStatuses = new Set(["PLACED", "CONFIRMED", "DISPATCHED", "DELIVERED"]);
-      const cutoff = Date.now() - 6 * 60 * 60 * 1000;
-      const purchasedProductIds = new Set();
-
-      for (const order of orders) {
-        const status = String(order?.status || "").toUpperCase();
-        if (!successStatuses.has(status)) continue;
-
-        const createdAtTs = order?.createdAt ? new Date(order.createdAt).getTime() : 0;
-        if (!createdAtTs || createdAtTs < cutoff) continue;
-
-        const items = Array.isArray(order?.items) ? order.items : [];
-        for (const item of items) {
-          const id =
-            item?.product?._id ||
-            item?.product ||
-            item?.productId?._id ||
-            item?.productId ||
-            null;
-          if (id) purchasedProductIds.add(String(id));
-        }
-      }
-
-      if (!purchasedProductIds.size || !cartRows.length) {
-        return { changed: false, removedCount: 0, latestCount: cartRows.length };
-      }
-
-      let removedCount = 0;
-      for (const row of cartRows) {
-        const productId = row?.product?._id || row?.product || null;
-        if (!productId) continue;
-        if (!purchasedProductIds.has(String(productId))) continue;
-
-        await api.removeFromCart(String(productId));
-        removedCount += 1;
-      }
-
-      if (removedCount > 0) {
-        await refreshCart();
-      }
-
-      const refreshed = removedCount > 0 ? await api.getCart() : cartRes;
-      const latestCount = Array.isArray(refreshed?.items) ? refreshed.items.length : 0;
-
-      return { changed: removedCount > 0, removedCount, latestCount };
-    } finally {
-      syncingPurchasedItemsRef.current = false;
-    }
-  };
-
-  useEffect(() => {
-    if (!token || !cartItems?.length) return;
-    (async () => {
-      try {
-        const result = await removeRecentlyPurchasedItemsFromCart();
-        if (result.changed) {
-          showToast("Purchased items were removed from your cart.", "success");
-        }
-      } catch {
-        // Keep checkout usable even if sync fails.
-      }
-    })();
-  }, [token]);
-
   const verifyPaymentWithRetry = async (payload, maxAttempts = 3) => {
     let lastErr;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -377,13 +300,6 @@ export default function CheckoutPage() {
 
     setPlacing(true);
     try {
-      const purchasedSync = await removeRecentlyPurchasedItemsFromCart();
-      if (purchasedSync.changed && purchasedSync.latestCount === 0) {
-        showToast("Your purchased items were removed from cart.", "success");
-        router.push("/order-success");
-        return;
-      }
-
       const sanitizeResult = await sanitizeCartBeforeCheckout();
       if (sanitizeResult.changed && sanitizeResult.latestCount === 0) {
         showToast("Some products were removed from your cart. Please review and try again.", "error");
