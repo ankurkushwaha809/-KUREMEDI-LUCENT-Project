@@ -1,16 +1,6 @@
-const isDev = import.meta.env.DEV;
+const rawBase = "http://localhost:5000/api";
 
-let rawBase =
-  import.meta.env.VITE_BASE_URL ||
-  (isDev ? "http://localhost:5000/api" : "https://backend.kuremedi.com/api");
-
-rawBase = String(rawBase || "").trim();
-// Normalize common domain typos and mistakes
-rawBase = rawBase.replace("https:/.kuremedi.com", "https://backend.kuremedi.com");
-rawBase = rawBase.replace("https:/.kuremcdi.com", "https://backend.kuremedi.com");
-rawBase = rawBase.replace("backend.kuremcdi.com", "backend.kuremedi.com"); // Fix typo variant
-
-export const ADMIN_API_BASE_URL = rawBase.replace(/\/$/, "");
+export const ADMIN_API_BASE_URL = rawBase;
 export const ADMIN_UPLOAD_BASE_URL = ADMIN_API_BASE_URL.replace(/\/api\/?$/, "");
 
 export const resolveUploadUrl = (value) => {

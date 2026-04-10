@@ -40,11 +40,6 @@ export const ContextProvider = ({ children }) => {
   const login = (name) => setUser(name);
   const logout = () => setUser(null);
 
-
-
-
-  console.log("Base URL:", BASE_URL);
-
   const GetCategoryData = async () => {
     try {
       const response = await axios.get(`${BASE_URL}/categories`);
@@ -262,8 +257,9 @@ export const ContextProvider = ({ children }) => {
   const getProducts = async () => {
     try {
       const response = await axios.get(`${BASE_URL}/products`);
-      console.log("✅ Products fetched:", response.data);
-      return response.data; // array of products
+      if (Array.isArray(response.data)) return response.data;
+      if (Array.isArray(response.data?.data)) return response.data.data;
+      return [];
     } catch (error) {
       console.error("❌ Error fetching products:", error.response?.data || error);
       throw error;
