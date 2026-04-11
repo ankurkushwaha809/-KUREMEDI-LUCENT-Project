@@ -50,7 +50,10 @@ export default function OrderedProductsPage() {
     }, [orders, user]);
 
     const buildTrackUrl = useCallback((awb, trackingUrl) => {
-        if (!awb) return trackingUrl || 'https://shiprocket.co/tracking';
+        if (!awb) {
+            if (trackingUrl && /^https?:\/\//i.test(String(trackingUrl))) return trackingUrl;
+            return 'https://shiprocket.co/tracking';
+        }
         const safe = `https://shiprocket.co/tracking/${encodeURIComponent(awb)}`;
         if (!trackingUrl) return safe;
         if (trackingUrl.includes('track.shiprocket.in')) return safe;
@@ -168,6 +171,7 @@ export default function OrderedProductsPage() {
                             const meta = getOrderStatusMeta(item.status);
                             const isDelivered = item.isDelivered;
                             const cleanAwb = sanitizeAwb(item.shiprocketAwb);
+                            const trackUrl = buildTrackUrl(cleanAwb, item.trackingUrl);
 
                             return (
                                 <div key={item.id} className="bg-white rounded-3xl border border-gray-200 shadow-sm p-5 md:p-6">
@@ -207,6 +211,17 @@ export default function OrderedProductsPage() {
                                                 ) : (
                                                     <p className="text-gray-500">Tracking ID will appear after dispatch.</p>
                                                 )}
+                                                {(cleanAwb || item.shiprocketShipmentId || item.trackingUrl) ? (
+                                                    <a
+                                                        href={trackUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        onClick={(e) => handleAwbClick(e, cleanAwb || item.shiprocketShipmentId, item.trackingUrl)}
+                                                        className="inline-flex mt-2 text-sm font-semibold text-teal-700 hover:text-teal-800 underline underline-offset-2"
+                                                    >
+                                                        Track order
+                                                    </a>
+                                                ) : null}
                                             </div>
                                         </div>
 
