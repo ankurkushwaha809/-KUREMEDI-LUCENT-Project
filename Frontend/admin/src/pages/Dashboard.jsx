@@ -16,6 +16,7 @@ import PendingApprovals from "../components/PendingApprovals";
 import LicenseExpire from "../components/LicenseExpire";
 import RejectedRetailers from "../components/RejectedRetailers";
 import Products from "../components/Products";
+import ProductPublished from "../components/ProductPublished";
 import AllAgencies from "../components/AgencyManagement/AllAgencies";
 import Orders from "../components/OrderManagement/Orders";
 import PlaceholderPage from "../components/PlaceholderPage";
@@ -166,6 +167,8 @@ const Dashboard = () => {
         return <AgencyReport />;
       case "Products":
         return <Products />;
+      case "Product Published":
+        return <ProductPublished />;
       case "Categories":
         return <Categories />;
       case "Brands":

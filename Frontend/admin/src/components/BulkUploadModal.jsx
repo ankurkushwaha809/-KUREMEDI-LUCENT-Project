@@ -8,7 +8,11 @@ const TEMPLATE_HEADERS = [
   "MRP",
   "Selling Price",
   "Composition",
+  "Ingredients",
+  "Key Uses",
+  "Safety Information",
   "Manufacturer",
+  "Packing",
   "Category",
   "Brand",
   "Discount %",
@@ -24,6 +28,8 @@ const TEMPLATE_HEADERS = [
   "Prescription Required",
 ];
 
+const REQUIRED_HEADERS = ["Product Name", "MRP", "Selling Price"];
+
 const BulkUploadModal = ({ onClose, onSuccess }) => {
   const { bulkImportProducts } = useContextApi();
   const [loading, setLoading] = useState(false);
@@ -35,8 +41,31 @@ const BulkUploadModal = ({ onClose, onSuccess }) => {
   const downloadTemplate = () => {
     const ws = XLSX.utils.aoa_to_sheet([
       TEMPLATE_HEADERS,
-      ["Example Product", 100, 80, "Paracetamol 500mg", "ABC Pharma", "Medicines", "BrandX", 20, "exclude", 12, "3004", "BATCH001", "2025-12-31", 100, 10, 1, "true", "false"],
-      ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+      [
+        "Example Product",
+        100,
+        80,
+        "Paracetamol 500mg",
+        "Paracetamol, Flavor base",
+        "Fever relief; Pain relief",
+        "Use as directed by physician",
+        "ABC Pharma",
+        "Strip of 10",
+        "Medicines",
+        "BrandX",
+        20,
+        "exclude",
+        12,
+        "3004",
+        "BATCH001",
+        "2025-12-31",
+        100,
+        10,
+        1,
+        "true",
+        "false",
+      ],
+      Array(TEMPLATE_HEADERS.length).fill(""),
     ]);
     ws["!cols"] = TEMPLATE_HEADERS.map(() => ({ wch: 14 }));
     const wb = XLSX.utils.book_new();
@@ -58,12 +87,23 @@ const BulkUploadModal = ({ onClose, onSuccess }) => {
             return;
           }
           const headers = rows[0].map((h) => String(h || "").trim());
+          const lowerHeaders = headers.map((h) => h.toLowerCase());
+          const missingRequired = REQUIRED_HEADERS.filter(
+            (required) => !lowerHeaders.includes(required.toLowerCase())
+          );
+          if (missingRequired.length > 0) {
+            reject(new Error(`Missing required columns: ${missingRequired.join(", ")}`));
+            return;
+          }
+
           const products = [];
           for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
             const obj = {};
             headers.forEach((h, j) => {
-              const val = row[j];
+              const cellAddress = XLSX.utils.encode_cell({ r: i, c: j });
+              const cell = firstSheet[cellAddress];
+              const val = cell?.l?.Target ? String(cell.l.Target).trim() : row[j];
               if (val !== undefined && val !== null && String(val).trim() !== "") {
                 obj[h] = val;
               }
@@ -99,7 +139,7 @@ const BulkUploadModal = ({ onClose, onSuccess }) => {
 
   const handleSubmit = async () => {
     if (!file) {
-      alert("Please select an Excel file first.");
+      setParseError("Please select an Excel file first.");
       return;
     }
     setLoading(true);
@@ -112,8 +152,14 @@ const BulkUploadModal = ({ onClose, onSuccess }) => {
         return;
       }
       const res = await bulkImportProducts(products);
-      setResult(res);
-      if (res.created > 0 && onSuccess) onSuccess();
+      const normalizedResult = {
+        created: Number(res?.created || 0),
+        failed: Number(res?.failed || 0),
+        total: Number(res?.total || products.length),
+        errors: Array.isArray(res?.errors) ? res.errors : [],
+      };
+      setResult(normalizedResult);
+      if (normalizedResult.created > 0 && onSuccess) onSuccess();
     } catch (err) {
       setParseError(err.response?.data?.message || err.message || "Upload failed");
     } finally {

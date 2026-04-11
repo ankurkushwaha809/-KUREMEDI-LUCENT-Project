@@ -70,6 +70,7 @@ const items = [
     icon: Package,
     children: [
       { title: "Products", icon: Package },
+      { title: "Product Published", icon: Settings },
       { title: "Categories", icon: Inbox },
       { title: "Brands", icon: Inbox },
       { title: "Inventory", icon: Archive },
@@ -262,7 +263,7 @@ export function AppSidebar({ collapsed = false }) {
 
                         <div
                           className={`overflow-hidden transition-all duration-300 ease-out ${isParentOpen(item.title)
-                            ? "max-h-[500px] opacity-100"
+                            ? "max-h-125 opacity-100"
                             : "max-h-0 opacity-0"
                             }`}
                         >

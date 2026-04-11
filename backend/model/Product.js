@@ -179,6 +179,11 @@ const productSchema = new mongoose.Schema(
       default: true,
     },
 
+    isPublished: {
+      type: Boolean,
+      default: false,
+    },
+
     prescriptionRequired: {
       type: Boolean,
       default: false,

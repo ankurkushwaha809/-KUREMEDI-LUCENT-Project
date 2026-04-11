@@ -5,6 +5,22 @@ import { API_UPLOAD_BASE } from "../config";
 
 const stripLeadingSlashes = (value) => String(value || "").replace(/^\/+/, "");
 
+const parseBooleanFlag = (value) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value === "string") {
+    const normalized = value.toLowerCase().trim();
+    if (["true", "1", "yes", "y"].includes(normalized)) return true;
+    if (["false", "0", "no", "n"].includes(normalized)) return false;
+  }
+  return false;
+};
+
+export const isWebsiteVisibleProduct = (product) => {
+  const raw = product?.isPublished ?? product?.productPublished ?? product?.published;
+  return parseBooleanFlag(raw);
+};
+
 export function getImageUrl(path) {
   if (!path) return "";
   const raw = String(path).trim();
@@ -30,6 +46,7 @@ export function getImageUrl(path) {
 
 export function normalizeProduct(p) {
   if (!p || !p._id) return null;
+  if (!isWebsiteVisibleProduct(p)) return null;
   const rawImages = p.productImages || p.images || p.image || [];
   const imgs = Array.isArray(rawImages) ? rawImages : [rawImages].filter(Boolean);
   const firstImg = imgs[0] || "";
@@ -79,6 +96,7 @@ export function normalizeProduct(p) {
 
 export function normalizeProducts(products) {
   if (!Array.isArray(products)) return [];
+
   return products.map((p) => normalizeProduct(p)).filter(Boolean);
 }
 

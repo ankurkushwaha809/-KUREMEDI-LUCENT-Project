@@ -10,7 +10,6 @@ import {
   ShoppingCart,
   AlertTriangle,
   XCircle,
-  Filter,
   Edit,
   Trash2,
   ChevronLeft,
@@ -171,9 +170,6 @@ const Products = () => {
             <Search size={18} className="absolute top-3 left-3 text-gray-400" />
             <input type="text" placeholder="Search products..." value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400" />
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-100">
-            <Filter size={18} /> Filters
-          </button>
         </div>
 
         {/* Table */}
@@ -283,7 +279,7 @@ const Products = () => {
 
       {/* Delete Confirmation */}
       {deleteId && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-xl p-6 max-w-sm w-full shadow-2xl animate-in fade-in zoom-in duration-200">
             <div className="flex items-center gap-3 text-red-600 mb-4">
               <AlertTriangle size={24} />

@@ -18,7 +18,7 @@ import {
 import { useAppContext } from "@/context/context";
 import { KycBanner } from "@/components/KycBanner";
 import { ProductCard } from "@/components/ProductCard";
-import { getProductSlug, getCategorySlug, getBrandSlug } from "@/utils/product";
+import { getProductSlug, getCategorySlug, getBrandSlug, normalizeProducts } from "@/utils/product";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { showToast } from "@/utils/toast";
@@ -196,7 +196,7 @@ const HomePage = () => {
 
         setCategories(categoriesList);
         setBrands(brandsList);
-        setProducts(productsList);
+        setProducts(normalizeProducts(productsList));
 
         const activeBanners = Array.isArray(bannerRes?.data)
           ? bannerRes.data

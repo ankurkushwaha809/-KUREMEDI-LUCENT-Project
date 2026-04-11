@@ -6,13 +6,13 @@ import { apiGet, apiPost, apiPut, apiDelete } from "./client";
 
 export const getProducts = (params = {}) => {
   const clean = Object.fromEntries(
-    Object.entries(params).filter(([, v]) => v != null && v !== "")
+    Object.entries({ published: true, ...params }).filter(([, v]) => v != null && v !== "")
   );
   const q = new URLSearchParams(clean).toString();
   return apiGet(`/products${q ? `?${q}` : ""}`);
 };
 
-export const getProductById = (id) => apiGet(`/products/${id}`);
+export const getProductById = (id) => apiGet(`/products/${id}?published=true`);
 
 export const getCategories = () => apiGet("/categories");
 

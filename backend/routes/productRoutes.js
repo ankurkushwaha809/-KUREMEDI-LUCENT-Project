@@ -6,6 +6,14 @@ import { calculateUnitPricing } from "../utils/pricing.js";
 
 const router = express.Router();
 
+const parseBooleanQuery = (value) => {
+  if (value === undefined || value === null || value === "") return undefined;
+  const normalized = String(value).toLowerCase().trim();
+  if (["true", "1", "yes", "y"].includes(normalized)) return true;
+  if (["false", "0", "no", "n"].includes(normalized)) return false;
+  return undefined;
+};
+
 const attachPricing = (productDoc) => {
   const product = productDoc?.toObject ? productDoc.toObject() : productDoc;
   if (!product) return product;
@@ -41,8 +49,13 @@ router.post("/bulk", bulkImportProducts);
 // 📖 READ All Products (populate category & brand). Query: ?category=name|?categoryId=id|?brand=name|?brandId=id
 router.get("/", async (req, res) => {
   try {
-    const { category, categoryId, brand, brandId, search } = req.query;
+    const { category, categoryId, brand, brandId, search, published } = req.query;
     const filter = {};
+    const publishedFilter = parseBooleanQuery(published);
+
+    if (publishedFilter !== undefined) {
+      filter.isPublished = publishedFilter;
+    }
 
     if (search && typeof search === "string" && search.trim()) {
       filter.productName = { $regex: search.trim(), $options: "i" };
@@ -87,6 +100,7 @@ function slugify(str) {
 // 📖 READ Single Product by id OR slug (populate category & brand)
 router.get("/:id", async (req, res) => {
   try {
+    const includeUnpublished = parseBooleanQuery(req.query.includeUnpublished) === true;
     const param = req.params.id;
     const isObjectId = /^[a-fA-F0-9]{24}$/.test(param);
     let product;
@@ -103,10 +117,40 @@ router.get("/:id", async (req, res) => {
     }
 
     if (!product) return res.status(404).json({ message: "Product not found" });
+    if (!includeUnpublished && product.isPublished !== true) {
+      return res.status(404).json({ message: "Product not found" });
+    }
 
     res.json(attachPricing(product));
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+router.patch("/:id/publish", async (req, res) => {
+  try {
+    const { isPublished } = req.body || {};
+    if (typeof isPublished !== "boolean") {
+      return res.status(400).json({ success: false, message: "isPublished must be a boolean" });
+    }
+
+    const product = await Product.findByIdAndUpdate(
+      req.params.id,
+      { isPublished },
+      { new: true }
+    )
+      .populate("category", "name description image")
+      .populate("brand", "name logo");
+
+    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+
+    res.json({
+      success: true,
+      message: isPublished ? "Product published" : "Product unpublished",
+      product: attachPricing(product),
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

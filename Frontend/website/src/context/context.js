@@ -32,6 +32,24 @@ function mapCartItem(item) {
   };
 }
 
+function parseBooleanFlag(value) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value === "string") {
+    const normalized = value.toLowerCase().trim();
+    if (["true", "1", "yes", "y"].includes(normalized)) return true;
+    if (["false", "0", "no", "n"].includes(normalized)) return false;
+  }
+  return false;
+}
+
+function isWebsiteVisibleProduct(product) {
+  if (!product || typeof product !== "object") return false;
+  return parseBooleanFlag(
+    product.isPublished ?? product.productPublished ?? product.published
+  );
+}
+
 export const AppProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
@@ -156,6 +174,26 @@ export const AppProvider = ({ children }) => {
   const getProductImageUrl = (path) => getImageUrl(path);
   const getBrandImageUrl = (path) => getImageUrl(path);
 
+  const getProducts = useCallback(
+    async (params = {}) => {
+      const res = await api.getProducts(params);
+      const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
+      return list.filter(isWebsiteVisibleProduct);
+    },
+    []
+  );
+
+  const getProductById = useCallback(async (id) => {
+    const res = await api.getProductById(id);
+    const product = res?.data || res;
+    if (!isWebsiteVisibleProduct(product)) {
+      const error = new Error("Product not found");
+      error.status = 404;
+      throw error;
+    }
+    return product;
+  }, []);
+
   // --- SUPPORT ACTIONS ---
 
   const fetchSupportTickets = useCallback(async () => {
@@ -254,8 +292,8 @@ export const AppProvider = ({ children }) => {
 
         // Products & Media
         getCategories: api.getCategories,
-        getProducts: api.getProducts,
-        getProductById: api.getProductById,
+        getProducts,
+        getProductById,
         getBrands: api.getBrands,
         getMarketingBanners: api.getMarketingBanners,
         getImageUrl, getProductImageUrl, getBrandImageUrl,

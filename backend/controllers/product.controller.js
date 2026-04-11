@@ -6,7 +6,9 @@ import Product from "../model/Product.js";
 import Category from "../model/Category.js";
 import Brand from "../model/Brand.js";
 import { normalizeGstMode, normalizePercent } from "../utils/pricing.js";
-import { uploadImagesToCloudinary } from "../utils/cloudinaryUpload.js";
+import {
+  uploadImagesToCloudinary,
+} from "../utils/cloudinaryUpload.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -47,6 +49,8 @@ const parseProductBody = (body) => {
     obj.expiryDate = new Date(obj.expiryDate);
   if (obj.isActive !== undefined)
     obj.isActive = obj.isActive === "true" || obj.isActive === true;
+  if (obj.isPublished !== undefined)
+    obj.isPublished = obj.isPublished === "true" || obj.isPublished === true;
   if (obj.prescriptionRequired !== undefined)
     obj.prescriptionRequired = obj.prescriptionRequired === "true" || obj.prescriptionRequired === true;
   if (obj.category === "" || obj.category === "null") obj.category = null;
@@ -105,6 +109,8 @@ export const createProduct = async (req, res) => {
     data.discountPercent = normalizePercent(discountPercent, 100);
     data.gstMode = resolveGstMode({ rawMode: req.body?.gstMode, gstPercent, fallbackMode: data.gstMode });
     data.gstPercent = data.gstMode === "include" ? normalizePercent(gstPercent) : 0;
+    // New products are unpublished by default. Publishing is handled from a separate admin screen.
+    data.isPublished = false;
     if (!data.category || !mongoose.Types.ObjectId.isValid(data.category)) {
       return res.status(400).json({ success: false, message: "Category is required" });
     }
@@ -230,6 +236,13 @@ const COL_MAP = {
   "safety information": "safetyInformation",
   "safetyinformation": "safetyInformation",
   "manufacturer": "manufacturer",
+  "pack size": "packSize",
+  "packsize": "packSize",
+  "packing": "packing",
+  "packing size": "packing",
+  "packingsize": "packing",
+  "package": "packing",
+  "packaging": "packing",
   "category": "categoryName",
   "category name": "categoryName",
   "brand": "brandName",
@@ -257,6 +270,10 @@ const COL_MAP = {
   "minorderqty": "minOrderQty",
   "active": "isActive",
   "isactive": "isActive",
+  "published": "isPublished",
+  "ispublished": "isPublished",
+  "product published": "isPublished",
+  "productpublished": "isPublished",
   "prescription required": "prescriptionRequired",
   "prescriptionrequired": "prescriptionRequired",
   "description text color": "descriptionTextColor",
@@ -291,6 +308,19 @@ const toBool = (v) => {
   return undefined;
 };
 
+const normalizeLookupKey = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+
+const normalizeColumnHeader = (value) =>
+  String(value || "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+
 export const bulkImportProducts = async (req, res) => {
   try {
     const { products } = req.body;
@@ -303,8 +333,8 @@ export const bulkImportProducts = async (req, res) => {
 
     const categories = await Category.find();
     const brands = await Brand.find();
-    const catByName = Object.fromEntries(categories.map((c) => [String(c.name).toLowerCase().trim(), c._id]));
-    const brandByName = Object.fromEntries(brands.map((b) => [String(b.name).toLowerCase().trim(), b._id]));
+    const catByName = Object.fromEntries(categories.map((c) => [normalizeLookupKey(c.name), c._id]));
+    const brandByName = Object.fromEntries(brands.map((b) => [normalizeLookupKey(b.name), b._id]));
 
     const created = [];
     const errors = [];
@@ -314,7 +344,9 @@ export const bulkImportProducts = async (req, res) => {
       try {
         const obj = {};
         for (const [key, val] of Object.entries(row)) {
-          const k = COL_MAP[String(key).toLowerCase().trim()] || key;
+          const normalizedKey = normalizeColumnHeader(key);
+          const keyNoSpace = normalizedKey.replace(/\s+/g, "");
+          const k = COL_MAP[normalizedKey] || COL_MAP[keyNoSpace] || key;
           obj[k] = val;
         }
 
@@ -341,19 +373,58 @@ export const bulkImportProducts = async (req, res) => {
 
         const discountPercent = normalizePercent(toNum(obj.discountPercent) ?? 0, 100);
         const gstMode = resolveGstMode({ rawMode: obj.gstMode, gstPercent: toNum(obj.gstPercent) ?? 0 });
-        const gstPercent = gstMode === "include" ? normalizePercent(toNum(obj.gstPercent) ?? 0) : 0;
+        const gstPercent = normalizePercent(toNum(obj.gstPercent) ?? 0);
 
         let categoryId = obj.category;
         if (obj.categoryName && !categoryId) {
-          categoryId = catByName[String(obj.categoryName).toLowerCase().trim()] || null;
+          const categoryName = String(obj.categoryName).trim();
+          const categoryKey = normalizeLookupKey(categoryName);
+          categoryId = catByName[categoryKey] || null;
+          if (!categoryId && categoryName) {
+            const existingCategory = await Category.findOne({
+              name: { $regex: new RegExp(`^${categoryName}$`, "i") },
+            });
+            if (existingCategory) {
+              categoryId = existingCategory._id;
+            } else {
+              const createdCategory = await Category.create({ name: categoryName, isActive: true });
+              categoryId = createdCategory._id;
+            }
+            catByName[categoryKey] = categoryId;
+          }
         }
         if (typeof categoryId === "string" && !mongoose.Types.ObjectId.isValid(categoryId)) categoryId = null;
 
         let brandId = obj.brand;
         if (obj.brandName && !brandId) {
-          brandId = brandByName[String(obj.brandName).toLowerCase().trim()] || null;
+          const brandName = String(obj.brandName).trim();
+          const brandKey = normalizeLookupKey(brandName);
+          brandId = brandByName[brandKey] || null;
+          if (!brandId && brandName) {
+            const existingBrand = await Brand.findOne({
+              name: { $regex: new RegExp(`^${brandName}$`, "i") },
+            });
+            if (existingBrand) {
+              brandId = existingBrand._id;
+            } else {
+              const createdBrand = await Brand.create({ name: brandName, isActive: true });
+              brandId = createdBrand._id;
+            }
+            brandByName[brandKey] = brandId;
+          }
         }
         if (typeof brandId === "string" && !mongoose.Types.ObjectId.isValid(brandId)) brandId = null;
+
+        const parsedExpiryDate = parseDateFromBulk(obj.expiryDate);
+        if (obj.expiryDate && !parsedExpiryDate) {
+          errors.push({
+            row: i + 1,
+            message: "Invalid Expiry Date. Use YYYY-MM-DD or DD-MM-YYYY format",
+          });
+          continue;
+        }
+
+        const finalProductImages = [];
 
         const product = await Product.create({
           productName,
@@ -372,6 +443,8 @@ export const bulkImportProducts = async (req, res) => {
           safetyTextColor: (obj.safetyTextColor || "").toString().trim() || undefined,
           safetyBgColor: (obj.safetyBgColor || "").toString().trim() || undefined,
           manufacturer: (obj.manufacturer || "").toString().trim() || undefined,
+          packSize: (obj.packing || obj.packSize || "").toString().trim() || undefined,
+          packing: (obj.packing || obj.packSize || "").toString().trim() || undefined,
           category: categoryId || undefined,
           brand: brandId || undefined,
           discountPercent,
@@ -379,13 +452,14 @@ export const bulkImportProducts = async (req, res) => {
           gstMode,
           hsnCode: (obj.hsnCode || "").toString().trim() || undefined,
           batchNumber: (obj.batchNumber || "").toString().trim() || undefined,
-          expiryDate: obj.expiryDate ? new Date(obj.expiryDate) : undefined,
+          expiryDate: parsedExpiryDate,
           stockQuantity: toNum(obj.stockQuantity) ?? 0,
           minStockLevel: toNum(obj.minStockLevel) ?? 0,
           minOrderQty: toNum(obj.minOrderQty) ?? 1,
           isActive: toBool(obj.isActive) ?? true,
+          isPublished: false,
           prescriptionRequired: toBool(obj.prescriptionRequired) ?? false,
-          productImages: [],
+          productImages: finalProductImages,
         });
 
         created.push(product);

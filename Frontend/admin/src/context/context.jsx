@@ -333,7 +333,11 @@ export const ContextProvider = ({ children }) => {
 
   const bulkImportProducts = async (products) => {
     try {
-      const response = await axios.post(`${BASE_URL}/products/bulk`, { products });
+      const response = await axios.post(
+        `${BASE_URL}/products/bulk`,
+        { products },
+        { headers: getAuthHeaders() }
+      );
       return response.data;
     } catch (error) {
       console.error("❌ Bulk import failed:", error.response?.data || error);
@@ -855,10 +859,48 @@ export const ContextProvider = ({ children }) => {
 
   const getProductsById = async (id) => {
     try {
-      // const response = await axios.get(`${BASE_URL}/products/${id}`);
+      const response = await axios.get(`${BASE_URL}/products/${id}?includeUnpublished=true`);
       return response.data;
     } catch (error) {
       console.error("❌ Error fetching product:", error.response?.data || error);
+      throw error;
+    }
+  };
+
+  const setProductPublishedStatus = async (id, isPublished) => {
+    try {
+      const response = await axios.patch(`${BASE_URL}/products/${id}/publish`, { isPublished });
+      return response.data;
+    } catch (error) {
+      const status = Number(error?.response?.status || 0);
+      const message = String(error?.response?.data?.message || "").toLowerCase();
+      const routeMissing = status === 404 && message.includes("route not found");
+
+      if (routeMissing) {
+        const currentResponse = await axios.get(`${BASE_URL}/products/${id}?includeUnpublished=true`);
+        const current = currentResponse?.data || {};
+        const categoryId = current?.category?._id || current?.category || "";
+        const brandId = current?.brand?._id || current?.brand || "";
+
+        const fallbackPayload = {
+          productName: current?.productName || current?.name || "",
+          mrp: current?.mrp ?? 0,
+          sellingPrice: current?.sellingPrice ?? current?.price ?? 0,
+          category: categoryId,
+          brand: brandId,
+          isPublished,
+        };
+
+        const fallbackResponse = await axios.put(`${BASE_URL}/products/${id}`, fallbackPayload);
+        return {
+          success: true,
+          message: isPublished ? "Product published" : "Product unpublished",
+          product: fallbackResponse?.data,
+          fallback: true,
+        };
+      }
+
+      console.error("❌ Error updating product publish status:", error.response?.data || error);
       throw error;
     }
   };
@@ -1182,6 +1224,7 @@ export const ContextProvider = ({ children }) => {
         updateProduct,
         addBlog,
         getProductsById,
+        setProductPublishedStatus,
         selectedOrderId,
         setSelectedOrderId,
         getOrderById,
