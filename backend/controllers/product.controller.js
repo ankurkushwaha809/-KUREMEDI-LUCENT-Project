@@ -397,6 +397,43 @@ const uploadImageRefsToCloudinary = async (value, rowNumber) => {
   return uploaded;
 };
 
+const parseDateFromBulk = (value) => {
+  if (value === undefined || value === null || value === "") return undefined;
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    // Excel serial date (days since 1899-12-30)
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    const millis = Math.round(value * 24 * 60 * 60 * 1000);
+    const parsed = new Date(excelEpoch.getTime() + millis);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  const raw = String(value).trim();
+  if (!raw) return undefined;
+
+  // Accept YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const parsed = new Date(`${raw}T00:00:00.000Z`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  // Accept DD-MM-YYYY or DD/MM/YYYY
+  const match = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (match) {
+    const [, dd, mm, yyyy] = match;
+    const iso = `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+    const parsed = new Date(`${iso}T00:00:00.000Z`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  const fallback = new Date(raw);
+  return Number.isNaN(fallback.getTime()) ? null : fallback;
+};
+
 export const bulkImportProducts = async (req, res) => {
   try {
     const { products } = req.body;
