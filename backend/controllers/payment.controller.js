@@ -1010,6 +1010,15 @@ export const updateOrderStatus = async (req, res) => {
           if (Array.isArray(awbRes) && awbRes.length) awbRes = awbRes[0];
 
           const readAwbFromKnownKeys = (payload) => {
+            const sanitizeAwb = (value) => {
+              const raw = String(value || "").trim();
+              if (!raw) return null;
+              if (raw.includes(" ")) return null;
+              if (/^https?:\/\//i.test(raw)) return null;
+              if (!/^[A-Za-z0-9-]{6,40}$/.test(raw)) return null;
+              return raw;
+            };
+
             const direct = [
               payload?.awb_code,
               payload?.awb,
@@ -1032,15 +1041,18 @@ export const updateOrderStatus = async (req, res) => {
               payload?.response?.data?.awb_assignments?.[0]?.awb_code,
               payload?.response?.data?.awb_assignement_details?.[0]?.awb,
             ].find((v) => typeof v === "string" || typeof v === "number");
-            if (direct != null && String(direct).trim()) return String(direct).trim();
+            if (direct != null && String(direct).trim()) {
+              const cleanDirect = sanitizeAwb(direct);
+              if (cleanDirect) return cleanDirect;
+            }
 
             // Safety: only pick nested values whose key name explicitly includes "awb".
             const scan = (node) => {
               if (!node || typeof node !== "object") return null;
               for (const [key, value] of Object.entries(node)) {
                 if (key.toLowerCase().includes("awb") && (typeof value === "string" || typeof value === "number")) {
-                  const text = String(value).trim();
-                  if (text) return text;
+                  const cleanValue = sanitizeAwb(value);
+                  if (cleanValue) return cleanValue;
                 }
                 if (value && typeof value === "object") {
                   const nested = scan(value);

@@ -58,6 +58,15 @@ export default function OrderedProductsPage() {
         return trackingUrl;
     }, []);
 
+    const sanitizeAwb = useCallback((value) => {
+        const raw = String(value || '').trim();
+        if (!raw) return null;
+        if (raw.includes(' ')) return null;
+        if (/^https?:\/\//i.test(raw)) return null;
+        if (!/^[A-Za-z0-9-]{6,40}$/.test(raw)) return null;
+        return raw;
+    }, []);
+
     const handleAwbClick = useCallback(async (e, awb, trackingUrl) => {
         e.preventDefault();
         const finalUrl = buildTrackUrl(awb, trackingUrl);
@@ -158,6 +167,7 @@ export default function OrderedProductsPage() {
                         {orderedProducts.map((item) => {
                             const meta = getOrderStatusMeta(item.status);
                             const isDelivered = item.isDelivered;
+                            const cleanAwb = sanitizeAwb(item.shiprocketAwb);
 
                             return (
                                 <div key={item.id} className="bg-white rounded-3xl border border-gray-200 shadow-sm p-5 md:p-6">
@@ -176,17 +186,17 @@ export default function OrderedProductsPage() {
                                                 Quantity: <span className="font-semibold text-gray-900">{item.quantity}</span> • Current stage: <span className="font-semibold text-gray-900">{item.progressLabel}</span>
                                             </p>
                                             <div className="mt-2 text-sm">
-                                                {item.shiprocketAwb ? (
+                                                {cleanAwb ? (
                                                     <p className="text-gray-700">
                                                         AWB ID:{' '}
                                                         <a
-                                                            href={item.trackingUrl || `https://shiprocket.co/tracking/${encodeURIComponent(item.shiprocketAwb)}`}
+                                                            href={item.trackingUrl || `https://shiprocket.co/tracking/${encodeURIComponent(cleanAwb)}`}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
-                                                            onClick={(e) => handleAwbClick(e, item.shiprocketAwb, item.trackingUrl)}
+                                                            onClick={(e) => handleAwbClick(e, cleanAwb, item.trackingUrl)}
                                                             className="font-semibold text-teal-700 hover:text-teal-800 underline underline-offset-2"
                                                         >
-                                                            {item.shiprocketAwb}
+                                                            {cleanAwb}
                                                         </a>
                                                     </p>
                                                 ) : item.shiprocketShipmentId ? (

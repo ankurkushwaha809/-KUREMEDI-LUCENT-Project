@@ -108,6 +108,15 @@ export const placeOrder = async (req, res) => {
  */
 export const getMyOrders = async (req, res) => {
   try {
+    const sanitizeAwb = (value) => {
+      const raw = String(value || "").trim();
+      if (!raw) return null;
+      if (raw.includes(" ")) return null;
+      if (/^https?:\/\//i.test(raw)) return null;
+      if (!/^[A-Za-z0-9-]{6,40}$/.test(raw)) return null;
+      return raw;
+    };
+
     const toTrackingUrl = (awb, trackingUrl) => {
       if (!awb) return null;
       const safe = `https://shiprocket.co/tracking/${encodeURIComponent(awb)}`;
@@ -121,7 +130,7 @@ export const getMyOrders = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
     const sanitized = orders.map((o) => {
-      const awb = o.shiprocketAwb || null;
+      const awb = sanitizeAwb(o.shiprocketAwb);
       const trackingUrl = toTrackingUrl(awb, o.trackingUrl);
 
       return {
@@ -158,6 +167,15 @@ export const getAllOrders = async (req, res) => {
  */
 export const getOrderTracking = async (req, res) => {
   try {
+    const sanitizeAwb = (value) => {
+      const raw = String(value || "").trim();
+      if (!raw) return null;
+      if (raw.includes(" ")) return null;
+      if (/^https?:\/\//i.test(raw)) return null;
+      if (!/^[A-Za-z0-9-]{6,40}$/.test(raw)) return null;
+      return raw;
+    };
+
     const toTrackingUrl = (awb, trackingUrl) => {
       if (!awb) return null;
       const safe = `https://shiprocket.co/tracking/${encodeURIComponent(awb)}`;
@@ -173,10 +191,12 @@ export const getOrderTracking = async (req, res) => {
       return res.status(403).json({ message: "Not your order" });
     }
 
+    const cleanAwb = sanitizeAwb(order.shiprocketAwb);
+
     let tracking = null;
-    if (order.shiprocketAwb) {
+    if (cleanAwb) {
       try {
-        tracking = await trackShipment(order.shiprocketAwb);
+        tracking = await trackShipment(cleanAwb);
       } catch (err) {
       }
     }
@@ -185,8 +205,8 @@ export const getOrderTracking = async (req, res) => {
       order: {
         _id: order._id,
         status: order.status,
-        trackingUrl: toTrackingUrl(order.shiprocketAwb, order.trackingUrl),
-        trackingNumber: order.shiprocketAwb || null,
+        trackingUrl: toTrackingUrl(cleanAwb, order.trackingUrl),
+        trackingNumber: cleanAwb,
         createdAt: order.createdAt,
         items: order.items,
         shippingAddress: order.shippingAddress,
