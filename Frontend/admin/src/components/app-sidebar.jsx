@@ -24,6 +24,7 @@ import {
   DollarSign,
   BarChart3,
   Globe,
+  CheckSquare,
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
@@ -70,7 +71,7 @@ const items = [
     icon: Package,
     children: [
       { title: "Products", icon: Package },
-      { title: "Product Published", icon: Settings },
+      { title: "Product Published", icon: CheckSquare },
       { title: "Categories", icon: Inbox },
       { title: "Brands", icon: Inbox },
       { title: "Inventory", icon: Archive },

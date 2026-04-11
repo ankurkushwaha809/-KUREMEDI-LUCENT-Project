@@ -18,6 +18,8 @@ const ProductPublished = () => {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [savingMap, setSavingMap] = useState({});
+  const [selectedIds, setSelectedIds] = useState({});
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   const loadProducts = async () => {
     try {
@@ -75,6 +77,85 @@ const ProductPublished = () => {
       alert("Failed to update publish status.");
     } finally {
       setSavingMap((prev) => ({ ...prev, [id]: false }));
+    }
+  };
+
+  const filteredIds = useMemo(
+    () => filteredProducts.map((p) => p?._id || p?.id).filter(Boolean),
+    [filteredProducts]
+  );
+
+  const selectedCount = useMemo(
+    () => filteredIds.filter((id) => Boolean(selectedIds[id])).length,
+    [filteredIds, selectedIds]
+  );
+
+  const allFilteredSelected = filteredIds.length > 0 && selectedCount === filteredIds.length;
+
+  const toggleSelectItem = (id) => {
+    if (!id) return;
+    setSelectedIds((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const toggleSelectAllFiltered = () => {
+    setSelectedIds((prev) => {
+      const next = { ...prev };
+      if (allFilteredSelected) {
+        filteredIds.forEach((id) => {
+          delete next[id];
+        });
+      } else {
+        filteredIds.forEach((id) => {
+          next[id] = true;
+        });
+      }
+      return next;
+    });
+  };
+
+  const updateManyPublished = async (ids, isPublished) => {
+    const targetIds = Array.from(new Set((ids || []).filter(Boolean)));
+    if (targetIds.length === 0) return;
+
+    setBulkLoading(true);
+    setSavingMap((prev) => {
+      const next = { ...prev };
+      targetIds.forEach((id) => {
+        next[id] = true;
+      });
+      return next;
+    });
+
+    try {
+      await Promise.all(targetIds.map((id) => setProductPublishedStatus(id, isPublished)));
+
+      setProducts((prev) => {
+        const idSet = new Set(targetIds);
+        return prev.map((item) => {
+          const id = item?._id || item?.id;
+          return idSet.has(id) ? { ...item, isPublished } : item;
+        });
+      });
+
+      setSelectedIds((prev) => {
+        const next = { ...prev };
+        targetIds.forEach((id) => {
+          delete next[id];
+        });
+        return next;
+      });
+    } catch (error) {
+      console.error("Failed to update publish status in bulk:", error);
+      alert("Failed to update publish status for selected products.");
+    } finally {
+      setSavingMap((prev) => {
+        const next = { ...prev };
+        targetIds.forEach((id) => {
+          next[id] = false;
+        });
+        return next;
+      });
+      setBulkLoading(false);
     }
   };
 
@@ -137,6 +218,57 @@ const ProductPublished = () => {
             ))}
           </div>
         </div>
+
+        <div className="mt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-t pt-4">
+          <div className="flex items-center gap-3">
+            <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={allFilteredSelected}
+                onChange={toggleSelectAllFiltered}
+                className="h-4 w-4 rounded border-gray-300"
+                disabled={bulkLoading || filteredIds.length === 0}
+              />
+              Select All ({filteredIds.length})
+            </label>
+            <span className="text-xs text-gray-500">Selected: {selectedCount}</span>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => updateManyPublished(filteredIds, true)}
+              disabled={bulkLoading || filteredIds.length === 0}
+              className="px-3 py-2 text-sm rounded-lg border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-60"
+            >
+              Publish All
+            </button>
+            <button
+              type="button"
+              onClick={() => updateManyPublished(filteredIds, false)}
+              disabled={bulkLoading || filteredIds.length === 0}
+              className="px-3 py-2 text-sm rounded-lg border border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 disabled:opacity-60"
+            >
+              Unpublish All
+            </button>
+            <button
+              type="button"
+              onClick={() => updateManyPublished(filteredIds.filter((id) => selectedIds[id]), true)}
+              disabled={bulkLoading || selectedCount === 0}
+              className="px-3 py-2 text-sm rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-60"
+            >
+              Publish Selected
+            </button>
+            <button
+              type="button"
+              onClick={() => updateManyPublished(filteredIds.filter((id) => selectedIds[id]), false)}
+              disabled={bulkLoading || selectedCount === 0}
+              className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+            >
+              Unpublish Selected
+            </button>
+          </div>
+        </div>
       </div>
 
       {loading ? (
@@ -166,6 +298,19 @@ const ProductPublished = () => {
                 key={id}
                 className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 flex flex-col"
               >
+                <div className="mb-2 flex items-center justify-between">
+                  <label className="inline-flex items-center gap-2 text-xs text-gray-600">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(selectedIds[id])}
+                      onChange={() => toggleSelectItem(id)}
+                      disabled={isSaving || bulkLoading}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    Select
+                  </label>
+                </div>
+
                 <div className="aspect-square rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
                   {imageUrl ? (
                     <img
