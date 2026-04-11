@@ -674,6 +674,7 @@ const TextAreaField = ({ label, name, value, onChange, placeholder }) => (
 
 const RichTextField = ({ label, value, onChange, placeholder }) => {
     const editorRef = useRef(null);
+    const toolbarMouseDown = (e) => e.preventDefault();
 
     useEffect(() => {
         if (!editorRef.current) return;
@@ -685,6 +686,7 @@ const RichTextField = ({ label, value, onChange, placeholder }) => {
     }, [value]);
 
     const runCommand = (command) => {
+        editorRef.current?.focus();
         document.execCommand(command, false, null);
         editorRef.current?.focus();
         onChange(editorRef.current?.innerHTML || "");
@@ -707,13 +709,14 @@ const RichTextField = ({ label, value, onChange, placeholder }) => {
 
             <div className="border border-gray-300 rounded-lg overflow-hidden">
                 <div className="flex items-center gap-1 border-b bg-gray-50 p-2">
-                    <button type="button" onClick={() => runCommand("bold")} className="px-2 py-1 text-xs font-semibold rounded border border-gray-300 bg-white hover:bg-gray-100">B</button>
-                    <button type="button" onClick={() => runCommand("italic")} className="px-2 py-1 text-xs italic rounded border border-gray-300 bg-white hover:bg-gray-100">I</button>
-                    <button type="button" onClick={() => runCommand("underline")} className="px-2 py-1 text-xs underline rounded border border-gray-300 bg-white hover:bg-gray-100">U</button>
-                    <button type="button" onClick={() => runCommand("insertUnorderedList")} className="px-2 py-1 text-xs rounded border border-gray-300 bg-white hover:bg-gray-100">• List</button>
-                    <button type="button" onClick={() => runCommand("insertOrderedList")} className="px-2 py-1 text-xs rounded border border-gray-300 bg-white hover:bg-gray-100">1. List</button>
+                    <button type="button" onMouseDown={toolbarMouseDown} onClick={() => runCommand("bold")} className="px-2 py-1 text-xs font-semibold rounded border border-gray-300 bg-white hover:bg-gray-100">B</button>
+                    <button type="button" onMouseDown={toolbarMouseDown} onClick={() => runCommand("italic")} className="px-2 py-1 text-xs italic rounded border border-gray-300 bg-white hover:bg-gray-100">I</button>
+                    <button type="button" onMouseDown={toolbarMouseDown} onClick={() => runCommand("underline")} className="px-2 py-1 text-xs underline rounded border border-gray-300 bg-white hover:bg-gray-100">U</button>
+                    <button type="button" onMouseDown={toolbarMouseDown} onClick={() => runCommand("insertUnorderedList")} className="px-2 py-1 text-xs rounded border border-gray-300 bg-white hover:bg-gray-100">• List</button>
+                    <button type="button" onMouseDown={toolbarMouseDown} onClick={() => runCommand("insertOrderedList")} className="px-2 py-1 text-xs rounded border border-gray-300 bg-white hover:bg-gray-100">1. List</button>
                     <button
                         type="button"
+                        onMouseDown={toolbarMouseDown}
                         onClick={() => {
                             if (editorRef.current) editorRef.current.innerHTML = "";
                             onChange("");
@@ -730,7 +733,7 @@ const RichTextField = ({ label, value, onChange, placeholder }) => {
                     onInput={handleInput}
                     onPaste={handlePaste}
                     data-placeholder={placeholder || "Write composition..."}
-                    className="min-h-22.5 max-h-56 overflow-y-auto px-3 py-2 focus:outline-none"
+                    className="min-h-22.5 max-h-56 overflow-y-auto px-3 py-2 focus:outline-none [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-1"
                     style={{ whiteSpace: "pre-wrap" }}
                 />
             </div>
