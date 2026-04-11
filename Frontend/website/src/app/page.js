@@ -131,10 +131,27 @@ const HomePage = () => {
       .slice(0, 6);
   }, [products, searchText]);
 
-  const brandLoop = useMemo(() => {
+  const uniqueBrands = useMemo(() => {
     if (!Array.isArray(brands) || brands.length === 0) return [];
-    return [...brands, ...brands];
+
+    const seen = new Set();
+    return brands.filter((brand) => {
+      const idKey = brand?._id ? String(brand._id) : "";
+      const nameKey = String(brand?.name || "").trim().toLowerCase();
+      const key = idKey || nameKey;
+
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }, [brands]);
+
+  const hasBrandMarquee = uniqueBrands.length > 1;
+
+  const brandLoop = useMemo(() => {
+    if (!Array.isArray(uniqueBrands) || uniqueBrands.length === 0) return [];
+    return hasBrandMarquee ? [...uniqueBrands, ...uniqueBrands] : uniqueBrands;
+  }, [uniqueBrands, hasBrandMarquee]);
 
   // Auto-slide Hero Banner
   useEffect(() => {
@@ -380,8 +397,8 @@ const HomePage = () => {
           onMouseLeave={() => setIsBrandsHovered(false)}
         >
           <div
-            className="flex w-max gap-6 md:gap-8 py-1 marquee-track"
-            style={{ animationPlayState: isBrandsHovered ? "paused" : "running" }}
+            className={`flex gap-6 md:gap-8 py-1 ${hasBrandMarquee ? "w-max marquee-track" : "w-full justify-start pl-4"}`}
+            style={hasBrandMarquee ? { animationPlayState: isBrandsHovered ? "paused" : "running" } : undefined}
           >
             {brandLoop.map((brand, index) => (
               <Link
