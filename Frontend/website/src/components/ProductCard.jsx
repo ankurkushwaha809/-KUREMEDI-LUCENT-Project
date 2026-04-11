@@ -5,6 +5,28 @@ import { Heart, Plus, Minus } from "lucide-react";
 import Link from "next/link";
 import { getProductSlug } from "@/utils/product";
 
+const toPlainText = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  if (typeof window !== "undefined") {
+    const el = document.createElement("div");
+    el.innerHTML = raw;
+    return (el.textContent || el.innerText || "").replace(/\s+/g, " ").trim();
+  }
+
+  return raw
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&#39;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
 export const ProductCard = ({
   product,
   cartItem,
@@ -18,6 +40,7 @@ export const ProductCard = ({
 }) => {
   const outOfStock = (product.stockQuantity ?? 1) <= 0;
   const lowStock = Number(product.stockQuantity ?? 0) > 0 && Number(product.stockQuantity ?? 0) <= 20;
+  const descriptionText = toPlainText(product.description);
 
   return (
     <div className="relative border border-gray-100 rounded-2xl p-4 bg-white hover:shadow-lg transition-shadow h-full flex flex-col">
@@ -76,9 +99,9 @@ export const ProductCard = ({
           <p className="text-[11px] font-semibold text-amber-700">Only {product.stockQuantity} left</p>
         )}
 
-        {product.description && (
+        {descriptionText && (
           <p className="text-xs text-gray-500 line-clamp-1">
-            {product.description}
+            {descriptionText}
           </p>
         )}
 
