@@ -432,13 +432,16 @@ export default function ProductDetailPage() {
 
           <div id="ingredients" className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_55px_rgba(15,23,42,0.08)] md:p-7">
             <h2 className="text-lg font-bold text-slate-900">Ingredients</h2>
-            <div className="mt-3 text-sm text-slate-700">
+            <div className="mt-3 text-sm leading-6 text-slate-700">
               {product.ingredients ? (
-                <span dangerouslySetInnerHTML={{ __html: ingredientsHtml }} />
+                <div
+                  className="space-y-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-1"
+                  dangerouslySetInnerHTML={{ __html: ingredientsHtml }}
+                />
               ) : product.composition ? (
-                <span>{product.composition}</span>
+                <div className="whitespace-pre-line">{product.composition}</div>
               ) : (
-                <span>Composition details are available in the product description above.</span>
+                <p>Composition details are available in the product description above.</p>
               )}
             </div>
           </div>
