@@ -7,6 +7,8 @@ import Category from "../model/Category.js";
 import Brand from "../model/Brand.js";
 import { normalizeGstMode, normalizePercent } from "../utils/pricing.js";
 import {
+  uploadImageUrlToCloudinary,
+  uploadLocalPathToCloudinary,
   deleteCloudinaryAssetsByUrls,
   uploadImagesToCloudinary,
 } from "../utils/cloudinaryUpload.js";
@@ -283,6 +285,19 @@ const COL_MAP = {
   "ispublished": "isPublished",
   "product published": "isPublished",
   "productpublished": "isPublished",
+  "image": "imageRefs",
+  "images": "imageRefs",
+  "image url": "imageRefs",
+  "image urls": "imageRefs",
+  "image path": "imageRefs",
+  "image paths": "imageRefs",
+  "product image": "imageRefs",
+  "product images": "imageRefs",
+  "photo": "imageRefs",
+  "photo url": "imageRefs",
+  "photo urls": "imageRefs",
+  "photo path": "imageRefs",
+  "photo paths": "imageRefs",
   "prescription required": "prescriptionRequired",
   "prescriptionrequired": "prescriptionRequired",
   "description text color": "descriptionTextColor",
@@ -330,6 +345,58 @@ const normalizeColumnHeader = (value) =>
     .trim()
     .replace(/\s+/g, " ");
 
+const splitImageRefs = (value) => {
+  if (value === undefined || value === null) return [];
+  return String(value)
+    .split(/[\n,|;]/g)
+    .map((x) => x.trim())
+    .filter(Boolean);
+};
+
+const isHttpImageUrl = (value) => /^https?:\/\//i.test(String(value || "").trim());
+
+const resolveLegacyFilePath = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw || isHttpImageUrl(raw) || raw.startsWith("data:")) return null;
+
+  const normalized = raw.replace(/\\/g, "/").replace(/^\/+/, "");
+  const candidates = [
+    path.resolve(process.cwd(), normalized),
+    path.resolve(process.cwd(), "backend", normalized),
+    path.resolve(__dirname, "..", normalized),
+    path.isAbsolute(raw) ? raw : null,
+  ].filter(Boolean);
+
+  return candidates.find((abs) => fs.existsSync(abs)) || null;
+};
+
+const uploadImageRefsToCloudinary = async (value, rowNumber) => {
+  const refs = splitImageRefs(value).slice(0, 6);
+  if (refs.length === 0) return [];
+
+  const uploaded = [];
+
+  for (const ref of refs) {
+    if (isHttpImageUrl(ref)) {
+      const url = await uploadImageUrlToCloudinary(ref, { folder: "lucent/products" });
+      if (url) uploaded.push(url);
+      continue;
+    }
+
+    const localPath = resolveLegacyFilePath(ref);
+    if (!localPath) {
+      throw new Error(
+        `Image reference not accessible for row ${rowNumber}. Use a public image URL or a server-accessible file path.`
+      );
+    }
+
+    const url = await uploadLocalPathToCloudinary(localPath, { folder: "lucent/products" });
+    if (url) uploaded.push(url);
+  }
+
+  return uploaded;
+};
+
 export const bulkImportProducts = async (req, res) => {
   try {
     const { products } = req.body;
@@ -340,10 +407,12 @@ export const bulkImportProducts = async (req, res) => {
       });
     }
 
-    const categories = await Category.find();
-    const brands = await Brand.find();
+    const categories = await Category.find({}, { _id: 1, name: 1 });
+    const brands = await Brand.find({}, { _id: 1, name: 1 });
     const catByName = Object.fromEntries(categories.map((c) => [normalizeLookupKey(c.name), c._id]));
     const brandByName = Object.fromEntries(brands.map((b) => [normalizeLookupKey(b.name), b._id]));
+    const validCategoryIds = new Set(categories.map((c) => String(c._id)));
+    const validBrandIds = new Set(brands.map((b) => String(b._id)));
 
     const created = [];
     const errors = [];
@@ -384,45 +453,41 @@ export const bulkImportProducts = async (req, res) => {
         const gstMode = resolveGstMode({ rawMode: obj.gstMode, gstPercent: toNum(obj.gstPercent) ?? 0 });
         const gstPercent = normalizePercent(toNum(obj.gstPercent) ?? 0);
 
-        let categoryId = obj.category;
-        if (obj.categoryName && !categoryId) {
-          const categoryName = String(obj.categoryName).trim();
-          const categoryKey = normalizeLookupKey(categoryName);
-          categoryId = catByName[categoryKey] || null;
-          if (!categoryId && categoryName) {
-            const existingCategory = await Category.findOne({
-              name: { $regex: new RegExp(`^${categoryName}$`, "i") },
-            });
-            if (existingCategory) {
-              categoryId = existingCategory._id;
-            } else {
-              const createdCategory = await Category.create({ name: categoryName, isActive: true });
-              categoryId = createdCategory._id;
-            }
-            catByName[categoryKey] = categoryId;
-          }
+        let categoryId = obj.category || obj.categoryId;
+        if (!categoryId && obj.categoryName) {
+          categoryId = catByName[normalizeLookupKey(obj.categoryName)] || null;
         }
-        if (typeof categoryId === "string" && !mongoose.Types.ObjectId.isValid(categoryId)) categoryId = null;
+        if (!categoryId && obj.category) {
+          categoryId = catByName[normalizeLookupKey(obj.category)] || null;
+        }
+        if (typeof categoryId === "string" && mongoose.Types.ObjectId.isValid(categoryId)) {
+          categoryId = validCategoryIds.has(categoryId) ? categoryId : null;
+        }
+        if (!categoryId) {
+          errors.push({
+            row: i + 1,
+            message: "Invalid Category. Use an existing category name from master list.",
+          });
+          continue;
+        }
 
-        let brandId = obj.brand;
-        if (obj.brandName && !brandId) {
-          const brandName = String(obj.brandName).trim();
-          const brandKey = normalizeLookupKey(brandName);
-          brandId = brandByName[brandKey] || null;
-          if (!brandId && brandName) {
-            const existingBrand = await Brand.findOne({
-              name: { $regex: new RegExp(`^${brandName}$`, "i") },
-            });
-            if (existingBrand) {
-              brandId = existingBrand._id;
-            } else {
-              const createdBrand = await Brand.create({ name: brandName, isActive: true });
-              brandId = createdBrand._id;
-            }
-            brandByName[brandKey] = brandId;
-          }
+        let brandId = obj.brand || obj.brandId;
+        if (!brandId && obj.brandName) {
+          brandId = brandByName[normalizeLookupKey(obj.brandName)] || null;
         }
-        if (typeof brandId === "string" && !mongoose.Types.ObjectId.isValid(brandId)) brandId = null;
+        if (!brandId && obj.brand) {
+          brandId = brandByName[normalizeLookupKey(obj.brand)] || null;
+        }
+        if (typeof brandId === "string" && mongoose.Types.ObjectId.isValid(brandId)) {
+          brandId = validBrandIds.has(brandId) ? brandId : null;
+        }
+        if (!brandId) {
+          errors.push({
+            row: i + 1,
+            message: "Invalid Brand. Use an existing brand name from master list.",
+          });
+          continue;
+        }
 
         const parsedExpiryDate = parseDateFromBulk(obj.expiryDate);
         if (obj.expiryDate && !parsedExpiryDate) {
@@ -433,7 +498,7 @@ export const bulkImportProducts = async (req, res) => {
           continue;
         }
 
-        const finalProductImages = [];
+        const finalProductImages = await uploadImageRefsToCloudinary(obj.imageRefs, i + 1);
 
         const product = await Product.create({
           productName,
@@ -482,6 +547,8 @@ export const bulkImportProducts = async (req, res) => {
       created: created.length,
       failed: errors.length,
       total: products.length,
+      validCategories: categories.map((c) => c.name),
+      validBrands: brands.map((b) => b.name),
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error) {

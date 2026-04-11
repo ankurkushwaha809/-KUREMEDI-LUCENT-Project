@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { X, Upload, FileSpreadsheet, Download } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useContextApi } from "../hooks/useContextApi";
@@ -15,6 +15,7 @@ const TEMPLATE_HEADERS = [
   "Packing",
   "Category",
   "Brand",
+  "Image URLs/Paths",
   "Discount %",
   "GST Mode",
   "GST %",
@@ -31,12 +32,32 @@ const TEMPLATE_HEADERS = [
 const REQUIRED_HEADERS = ["Product Name", "MRP", "Selling Price"];
 
 const BulkUploadModal = ({ onClose, onSuccess }) => {
-  const { bulkImportProducts } = useContextApi();
+  const { bulkImportProducts, GetCategoryData, getBrands } = useContextApi();
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState(null);
   const [result, setResult] = useState(null);
   const [parseError, setParseError] = useState(null);
+  const [categoryNames, setCategoryNames] = useState([]);
+  const [brandNames, setBrandNames] = useState([]);
   const inputRef = useRef(null);
+
+  useEffect(() => {
+    const loadMasters = async () => {
+      try {
+        const [categoryRes, brandRes] = await Promise.all([
+          GetCategoryData(),
+          getBrands(),
+        ]);
+        const categories = (categoryRes?.data || []).map((x) => String(x?.name || "").trim()).filter(Boolean);
+        const brands = (brandRes?.data || []).map((x) => String(x?.name || "").trim()).filter(Boolean);
+        setCategoryNames(categories);
+        setBrandNames(brands);
+      } catch (error) {
+        console.error("Failed to load category/brand lists for bulk upload:", error);
+      }
+    };
+    loadMasters();
+  }, [GetCategoryData, getBrands]);
 
   const downloadTemplate = () => {
     const ws = XLSX.utils.aoa_to_sheet([
@@ -53,6 +74,7 @@ const BulkUploadModal = ({ onClose, onSuccess }) => {
         "Strip of 10",
         "Medicines",
         "BrandX",
+        "https://example.com/image1.jpg, https://example.com/image2.jpg",
         20,
         "exclude",
         12,
@@ -68,9 +90,48 @@ const BulkUploadModal = ({ onClose, onSuccess }) => {
       Array(TEMPLATE_HEADERS.length).fill(""),
     ]);
     ws["!cols"] = TEMPLATE_HEADERS.map(() => ({ wch: 14 }));
+
+    const masterRows = [
+      ["Categories"],
+      ...categoryNames.map((name) => [name]),
+      [],
+      ["Brands"],
+      ...brandNames.map((name) => [name]),
+    ];
+    const masterSheet = XLSX.utils.aoa_to_sheet(masterRows);
+    masterSheet["!cols"] = [{ wch: 40 }];
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Products");
+    XLSX.utils.book_append_sheet(wb, masterSheet, "Master Lists");
     XLSX.writeFile(wb, "product_bulk_template.xlsx");
+  };
+
+  const normalizeLookup = (value) => String(value || "").trim().toLowerCase();
+
+  const validateMasterRefs = (products) => {
+    if (!Array.isArray(products) || products.length === 0) return null;
+
+    const categorySet = new Set(categoryNames.map(normalizeLookup));
+    const brandSet = new Set(brandNames.map(normalizeLookup));
+    if (categorySet.size === 0 || brandSet.size === 0) return null;
+
+    const issues = [];
+
+    products.forEach((row, idx) => {
+      const category = row["Category"] ?? row["category"] ?? row["Category Name"] ?? "";
+      const brand = row["Brand"] ?? row["brand"] ?? row["Brand Name"] ?? "";
+
+      if (!categorySet.has(normalizeLookup(category))) {
+        issues.push(`Row ${idx + 2}: Invalid Category "${String(category || "").trim()}"`);
+      }
+      if (!brandSet.has(normalizeLookup(brand))) {
+        issues.push(`Row ${idx + 2}: Invalid Brand "${String(brand || "").trim()}"`);
+      }
+    });
+
+    if (issues.length === 0) return null;
+    return `${issues.slice(0, 6).join("\n")}\nUse existing names from Master Lists sheet.`;
   };
 
   const parseExcel = (file) => {
@@ -151,6 +212,13 @@ const BulkUploadModal = ({ onClose, onSuccess }) => {
         setParseError("No valid product rows found in the file.");
         return;
       }
+
+      const masterValidationError = validateMasterRefs(products);
+      if (masterValidationError) {
+        setParseError(masterValidationError);
+        return;
+      }
+
       const res = await bulkImportProducts(products);
       const normalizedResult = {
         created: Number(res?.created || 0),
@@ -190,6 +258,10 @@ const BulkUploadModal = ({ onClose, onSuccess }) => {
         <div className="p-6 space-y-4">
           <p className="text-sm text-gray-600">
             Upload an Excel (.xlsx) file with product data. Download the template below for the correct format.
+          </p>
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+            Use exact Category and Brand names from Master Lists. For images, provide comma-separated public URLs or server-accessible file paths in
+            "Image URLs/Paths".
           </p>
 
           <button
