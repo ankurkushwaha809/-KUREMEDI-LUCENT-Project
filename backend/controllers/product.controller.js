@@ -287,6 +287,8 @@ const COL_MAP = {
   "productpublished": "isPublished",
   "image": "imageRefs",
   "images": "imageRefs",
+  "image urls/paths": "imageRefs",
+  "image urls / paths": "imageRefs",
   "image url": "imageRefs",
   "image urls": "imageRefs",
   "image path": "imageRefs",
