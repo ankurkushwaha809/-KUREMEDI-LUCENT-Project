@@ -71,12 +71,46 @@ export const updateProfile = (data) => apiPut("/auth/me", data);
 export const submitKyc = async (formData) => {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   if (!token) throw new Error("Not authenticated");
-  const res = await fetch(`${API_BASE_URL}/auth/kyc`, {
-    method: "PUT",
-    headers: { Authorization: `Bearer ${token}` },
-    body: formData,
-  });
-  return res.json();
+  let res;
+  try {
+    res = await fetch(`${API_BASE_URL}/auth/kyc`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+  } catch (error) {
+    const networkError = new Error(
+      "Unable to reach server. Please check internet/CORS settings and ensure files are not too large."
+    );
+    networkError.cause = error;
+    throw networkError;
+  }
+
+  const raw = await res.text();
+  let data = null;
+  if (raw) {
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      data = { message: raw };
+    }
+  }
+
+  if (!res.ok) {
+    const error = new Error(data?.message || `Request failed with status ${res.status}`);
+    error.status = res.status;
+    error.data = data;
+
+    if (res.status === 413) {
+      error.message = "KYC upload is too large. Please upload smaller files (recommended under 5MB each).";
+    } else if (res.status === 401) {
+      error.message = "Your session expired. Please login again and retry KYC submission.";
+    }
+
+    throw error;
+  }
+
+  return data;
 };
 
 export const getWallet = () => apiGet("/wallet");

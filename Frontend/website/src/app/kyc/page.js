@@ -18,6 +18,10 @@ export default function KycPage() {
 }
 
 function KycPageInner() {
+  const MAX_FILE_SIZE_MB = 5;
+  const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+  const ALLOWED_FILE_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect');
@@ -25,6 +29,7 @@ function KycPageInner() {
 
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState('');
 
   // Text Fields State
   const [drugLicenseNumber, setDrugLicenseNumber] = useState('');
@@ -40,6 +45,55 @@ function KycPageInner() {
   const [shopPhotoFile, setShopPhotoFile] = useState(null);
   const [cancelChequeFile, setCancelChequeFile] = useState(null);
   const isKycPending = user?.kyc === 'PENDING';
+
+  const getErrorMessage = (error) => {
+    const fromData = error?.data?.message;
+    const fromResponse = error?.response?.data?.message;
+    const fromMessage = error?.message;
+    const msg = fromData || fromResponse || fromMessage;
+    if (!msg) return 'Failed to submit KYC. Please try again.';
+
+    if (/networkerror|failed to fetch|network request failed|load failed|network error/i.test(String(msg))) {
+      return 'Unable to submit KYC right now. Please check internet, ensure each document is under 5MB, then retry. If issue continues, contact support.';
+    }
+
+    return String(msg);
+  };
+
+  const validateKycFile = (file, label) => {
+    if (!file) return `${label} is required`;
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+      return `${label} must be PDF, JPG, or PNG format`;
+    }
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return `${label} is too large. Max allowed size is ${MAX_FILE_SIZE_MB}MB`;
+    }
+    return '';
+  };
+
+  const handleFileChange = ({ file, fieldKey, setFile, label, required }) => {
+    setSubmitError('');
+
+    if (!file) {
+      setFile(null);
+      if (required) {
+        setErrors((p) => ({ ...p, [fieldKey]: `${label} is required` }));
+      } else {
+        setErrors((p) => ({ ...p, [fieldKey]: '' }));
+      }
+      return;
+    }
+
+    const validationMessage = validateKycFile(file, label);
+    if (validationMessage) {
+      setFile(null);
+      setErrors((p) => ({ ...p, [fieldKey]: validationMessage }));
+      return;
+    }
+
+    setFile(file);
+    setErrors((p) => ({ ...p, [fieldKey]: '' }));
+  };
 
   // Authentication Check
   if (!token || !user) {
@@ -133,6 +187,8 @@ function KycPageInner() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitError('');
+
     if (isKycPending) {
       showToast('KYC already submitted. Please wait for admin approval.', 'info');
       return;
@@ -145,8 +201,27 @@ function KycPageInner() {
     if (!accountNumber.trim()) err.accountNumber = 'Account number is required';
     if (!ifscCode.trim()) err.ifscCode = 'IFSC code is required';
     if (!cancelChequeFile) err.cancelChequeFile = 'Cancel cheque / passbook document is required';
+
+    if (drugLicenseFile) {
+      const msg = validateKycFile(drugLicenseFile, 'Drug license document');
+      if (msg) err.drugLicenseFile = msg;
+    }
+    if (gstFile) {
+      const msg = validateKycFile(gstFile, 'GST certificate');
+      if (msg) err.gstFile = msg;
+    }
+    if (shopPhotoFile) {
+      const msg = validateKycFile(shopPhotoFile, 'Shop photo');
+      if (msg) err.shopPhotoFile = msg;
+    }
+    if (cancelChequeFile) {
+      const msg = validateKycFile(cancelChequeFile, 'Cancel cheque / passbook');
+      if (msg) err.cancelChequeFile = msg;
+    }
+
     if (Object.keys(err).length) {
       setErrors(err);
+      setSubmitError('Please fix the highlighted fields and submit again.');
       return;
     }
     setErrors({});
@@ -179,7 +254,8 @@ function KycPageInner() {
         router.push('/');
       }
     } catch (err) {
-      const msg = err?.response?.data?.message || err?.message || 'Failed to submit KYC';
+      const msg = getErrorMessage(err);
+      setSubmitError(msg);
       showToast(msg, "error");
     } finally {
       setLoading(false);
@@ -203,6 +279,13 @@ function KycPageInner() {
           Retailer KYC: drug license, GST, shop photo and bank details with cancel cheque. Ensure documents are clear.
         </p>
 
+        {submitError ? (
+          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+            <p className="text-sm font-semibold text-red-800">KYC submission failed</p>
+            <p className="mt-1 text-sm text-red-700">{submitError}</p>
+          </div>
+        ) : null}
+
         <div className="space-y-6 mb-6">
 
           {/* Drug License Section */}
@@ -222,7 +305,13 @@ function KycPageInner() {
               <input
                 type="file"
                 accept=".pdf,.jpg,.jpeg,.png"
-                onChange={(e) => { setDrugLicenseFile(e.target.files[0]); setErrors((p) => ({ ...p, drugLicenseFile: '' })); }}
+                onChange={(e) => handleFileChange({
+                  file: e.target.files?.[0],
+                  fieldKey: 'drugLicenseFile',
+                  setFile: setDrugLicenseFile,
+                  label: 'Drug license document',
+                  required: true,
+                })}
                 className={"w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer " + (errors.drugLicenseFile ? "ring-2 ring-red-500 rounded-lg border-red-500" : "")}
               />
               {errors.drugLicenseFile && <p className="text-red-500 text-sm mt-1">{errors.drugLicenseFile}</p>}
@@ -245,7 +334,13 @@ function KycPageInner() {
               <input
                 type="file"
                 accept=".pdf,.jpg,.jpeg,.png"
-                onChange={(e) => setGstFile(e.target.files[0])}
+                onChange={(e) => handleFileChange({
+                  file: e.target.files?.[0],
+                  fieldKey: 'gstFile',
+                  setFile: setGstFile,
+                  label: 'GST certificate',
+                  required: false,
+                })}
                 className="w-full text-sm text-gray-500
                   file:mr-4 file:py-2.5 file:px-4
                   file:rounded-full file:border-0
@@ -253,6 +348,7 @@ function KycPageInner() {
                   file:bg-teal-50 file:text-teal-700
                   hover:file:bg-teal-100 cursor-pointer"
               />
+              {errors.gstFile && <p className="text-red-500 text-sm mt-1">{errors.gstFile}</p>}
             </div>
           </div>
 
@@ -262,7 +358,13 @@ function KycPageInner() {
             <input
               type="file"
               accept=".pdf,.jpg,.jpeg,.png"
-              onChange={(e) => setShopPhotoFile(e.target.files[0])}
+              onChange={(e) => handleFileChange({
+                file: e.target.files?.[0],
+                fieldKey: 'shopPhotoFile',
+                setFile: setShopPhotoFile,
+                label: 'Shop photo',
+                required: false,
+              })}
               className="w-full text-sm text-gray-500
                   file:mr-4 file:py-2.5 file:px-4
                   file:rounded-full file:border-0
@@ -270,6 +372,7 @@ function KycPageInner() {
                   file:bg-teal-50 file:text-teal-700
                   hover:file:bg-teal-100 cursor-pointer"
             />
+            {errors.shopPhotoFile && <p className="text-red-500 text-sm mt-1">{errors.shopPhotoFile}</p>}
           </div>
 
           {/* Bank Details */}
@@ -325,7 +428,13 @@ function KycPageInner() {
                 <input
                   type="file"
                   accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={(e) => { setCancelChequeFile(e.target.files[0]); setErrors((p) => ({ ...p, cancelChequeFile: '' })); }}
+                  onChange={(e) => handleFileChange({
+                    file: e.target.files?.[0],
+                    fieldKey: 'cancelChequeFile',
+                    setFile: setCancelChequeFile,
+                    label: 'Cancel cheque / passbook',
+                    required: true,
+                  })}
                   className="w-full text-sm text-gray-500
                     file:mr-4 file:py-2.5 file:px-4
                     file:rounded-full file:border-0
