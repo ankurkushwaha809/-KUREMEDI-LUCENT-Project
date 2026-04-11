@@ -1,5 +1,8 @@
 import Brand from "../model/Brand.js";
-import { uploadImageToCloudinary } from "../utils/cloudinaryUpload.js";
+import {
+  deleteCloudinaryAssetByUrl,
+  uploadImageToCloudinary,
+} from "../utils/cloudinaryUpload.js";
 
 // CREATE BRAND
 export const createBrand = async (req, res) => {
@@ -68,6 +71,7 @@ export const updateBrand = async (req, res) => {
     }
     if (description !== undefined) brand.description = description;
     if (isActive !== undefined) brand.isActive = isActive;
+    const previousLogo = brand.logo;
     if (req.file) {
       brand.logo = await uploadImageToCloudinary(req.file, {
         folder: "lucent/brands",
@@ -75,6 +79,9 @@ export const updateBrand = async (req, res) => {
     }
 
     await brand.save();
+    if (req.file && previousLogo && previousLogo !== brand.logo) {
+      await deleteCloudinaryAssetByUrl(previousLogo).catch(() => {});
+    }
 
     res.json({
       success: true,
@@ -96,7 +103,11 @@ export const deleteBrand = async (req, res) => {
         .json({ success: false, message: "Brand not found" });
     }
 
+    const logoToDelete = brand.logo;
     await brand.deleteOne();
+    if (logoToDelete) {
+      await deleteCloudinaryAssetByUrl(logoToDelete).catch(() => {});
+    }
 
     res.json({ success: true, message: "Brand deleted successfully" });
   } catch (error) {

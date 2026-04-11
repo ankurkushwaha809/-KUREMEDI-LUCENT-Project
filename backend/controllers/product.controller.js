@@ -7,6 +7,7 @@ import Category from "../model/Category.js";
 import Brand from "../model/Brand.js";
 import { normalizeGstMode, normalizePercent } from "../utils/pricing.js";
 import {
+  deleteCloudinaryAssetsByUrls,
   uploadImagesToCloudinary,
 } from "../utils/cloudinaryUpload.js";
 
@@ -147,6 +148,7 @@ export const updateProduct = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ message: "Product not found" });
+    const previousImages = Array.isArray(product.productImages) ? [...product.productImages] : [];
 
     const data = parseProductBody(req.body || {});
     const name = (data.productName ?? product.productName ?? "").toString().trim();
@@ -210,6 +212,13 @@ export const updateProduct = async (req, res) => {
 
     Object.assign(product, data);
     await product.save();
+    if (data.productImages !== undefined) {
+      const currentImages = Array.isArray(product.productImages) ? product.productImages : [];
+      const removedImages = previousImages.filter((img) => !currentImages.includes(img));
+      if (removedImages.length > 0) {
+        await deleteCloudinaryAssetsByUrls(removedImages).catch(() => {});
+      }
+    }
     await product.populate(["category", "brand"]);
     res.json(product);
   } catch (error) {

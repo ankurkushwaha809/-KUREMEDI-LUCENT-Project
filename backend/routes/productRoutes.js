@@ -3,6 +3,7 @@ import Product from "../model/Product.js";
 import { productUpload } from "../middleware/productUpload.js";
 import { createProduct, updateProduct, bulkImportProducts } from "../controllers/product.controller.js";
 import { calculateUnitPricing } from "../utils/pricing.js";
+import { deleteCloudinaryAssetsByUrls } from "../utils/cloudinaryUpload.js";
 
 const router = express.Router();
 
@@ -164,10 +165,20 @@ router.put(
 // ❌ DELETE Product
 router.delete("/:id", async (req, res) => {
   try {
-    const deletedProduct = await Product.findByIdAndDelete(req.params.id);
+    const product = await Product.findById(req.params.id);
 
-    if (!deletedProduct)
+    if (!product)
       return res.status(404).json({ message: "Product not found" });
+
+    const imagesToDelete = Array.isArray(product.productImages)
+      ? [...product.productImages]
+      : [];
+
+    await product.deleteOne();
+
+    if (imagesToDelete.length > 0) {
+      await deleteCloudinaryAssetsByUrls(imagesToDelete).catch(() => {});
+    }
 
     res.json({ message: "Product deleted successfully" });
   } catch (error) {

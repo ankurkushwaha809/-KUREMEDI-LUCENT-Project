@@ -1,5 +1,8 @@
 import Banner from "../model/Banner.js";
-import { uploadImageToCloudinary } from "../utils/cloudinaryUpload.js";
+import {
+  deleteCloudinaryAssetByUrl,
+  uploadImageToCloudinary,
+} from "../utils/cloudinaryUpload.js";
 
 const parseBool = (value, defaultValue) => {
   if (value === undefined || value === null || value === "") return defaultValue;
@@ -141,6 +144,7 @@ export const updateBanner = async (req, res) => {
     if (buttonColor !== undefined) {
       banner.buttonColor = sanitizeColor(buttonColor, banner.buttonColor || "#0f172a");
     }
+    const previousImage = banner.image;
     if (req.file?.path) {
       banner.image = await uploadImageToCloudinary(req.file, {
         folder: "lucent/banners",
@@ -148,6 +152,9 @@ export const updateBanner = async (req, res) => {
     }
 
     await banner.save();
+    if (req.file?.path && previousImage && previousImage !== banner.image) {
+      await deleteCloudinaryAssetByUrl(previousImage).catch(() => {});
+    }
     res.json({ success: true, message: "Banner updated", banner });
   } catch (error) {
     console.error("Banner update error:", error);
@@ -165,7 +172,11 @@ export const deleteBanner = async (req, res) => {
       return res.status(404).json({ success: false, message: "Banner not found" });
     }
 
+    const imageToDelete = banner.image;
     await banner.deleteOne();
+    if (imageToDelete) {
+      await deleteCloudinaryAssetByUrl(imageToDelete).catch(() => {});
+    }
     res.json({ success: true, message: "Banner deleted" });
   } catch (error) {
     res.status(500).json({ success: false, message: "Server error" });
