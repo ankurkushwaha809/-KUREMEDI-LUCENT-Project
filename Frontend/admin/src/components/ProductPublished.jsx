@@ -20,6 +20,7 @@ const ProductPublished = () => {
   const [savingMap, setSavingMap] = useState({});
   const [selectedIds, setSelectedIds] = useState({});
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [sortBy, setSortBy] = useState("name-asc");
 
   const loadProducts = async () => {
     try {
@@ -39,7 +40,7 @@ const ProductPublished = () => {
 
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return products.filter((p) => {
+    let result = products.filter((p) => {
       const isPublished = Boolean(p?.isPublished);
       if (filter === "published" && !isPublished) return false;
       if (filter === "unpublished" && isPublished) return false;
@@ -54,7 +55,24 @@ const ProductPublished = () => {
         .toLowerCase();
       return text.includes(q);
     });
-  }, [products, search, filter]);
+
+    // Sorting logic
+    result = [...result];
+    if (sortBy === "name-asc") {
+      result.sort((a, b) => (a.productName || a.name || "").localeCompare(b.productName || b.name || ""));
+    } else if (sortBy === "name-desc") {
+      result.sort((a, b) => (b.productName || b.name || "").localeCompare(a.productName || a.name || ""));
+    } else if (sortBy === "published") {
+      result.sort((a, b) => Number(Boolean(b.isPublished)) - Number(Boolean(a.isPublished)));
+    } else if (sortBy === "unpublished") {
+      result.sort((a, b) => Number(Boolean(a.isPublished)) - Number(Boolean(b.isPublished)));
+    } else if (sortBy === "date-desc") {
+      result.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    } else if (sortBy === "date-asc") {
+      result.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+    }
+    return result;
+  }, [products, search, filter, sortBy]);
 
   const togglePublished = async (product) => {
     const id = product?._id || product?.id;
@@ -146,7 +164,7 @@ const ProductPublished = () => {
       });
     } catch (error) {
       console.error("Failed to update publish status in bulk:", error);
-      alert("Failed to update publish status for selected products.");
+      alert("Failed to update publish status.");
     } finally {
       setSavingMap((prev) => {
         const next = { ...prev };
@@ -198,7 +216,20 @@ const ProductPublished = () => {
             />
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            <label className="text-sm text-gray-700 font-medium">Sort by:</label>
+            <select
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value)}
+              className="border rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+            >
+              <option value="name-asc">Name (A-Z)</option>
+              <option value="name-desc">Name (Z-A)</option>
+              <option value="published">Published first</option>
+              <option value="unpublished">Unpublished first</option>
+              <option value="date-desc">Newest first</option>
+              <option value="date-asc">Oldest first</option>
+            </select>
             {[
               { key: "all", label: "All" },
               { key: "published", label: "Published" },
@@ -234,38 +265,22 @@ const ProductPublished = () => {
             <span className="text-xs text-gray-500">Selected: {selectedCount}</span>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => updateManyPublished(filteredIds, true)}
-              disabled={bulkLoading || filteredIds.length === 0}
-              className="px-3 py-2 text-sm rounded-lg border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-60"
-            >
-              Publish All
-            </button>
-            <button
-              type="button"
-              onClick={() => updateManyPublished(filteredIds, false)}
-              disabled={bulkLoading || filteredIds.length === 0}
-              className="px-3 py-2 text-sm rounded-lg border border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 disabled:opacity-60"
-            >
-              Unpublish All
-            </button>
+          <div className="flex gap-2">
             <button
               type="button"
               onClick={() => updateManyPublished(filteredIds.filter((id) => selectedIds[id]), true)}
               disabled={bulkLoading || selectedCount === 0}
-              className="px-3 py-2 text-sm rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-60"
+              className="px-3 py-2 text-sm rounded-lg border border-green-800 bg-green-700 text-white hover:bg-green-800 disabled:opacity-60"
             >
-              Publish Selected
+              Publish
             </button>
             <button
               type="button"
               onClick={() => updateManyPublished(filteredIds.filter((id) => selectedIds[id]), false)}
               disabled={bulkLoading || selectedCount === 0}
-              className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+              className="px-3 py-2 text-sm rounded-lg border border-orange-800 bg-orange-700 text-white hover:bg-orange-800 disabled:opacity-60"
             >
-              Unpublish Selected
+              Unpublish
             </button>
           </div>
         </div>
