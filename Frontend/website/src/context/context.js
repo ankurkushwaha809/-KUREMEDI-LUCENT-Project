@@ -50,6 +50,29 @@ function isWebsiteVisibleProduct(product) {
   );
 }
 
+const QUERY_CACHE_TTL_MS = 60 * 1000;
+
+const buildQueryKey = (params = {}) => {
+  const entries = Object.entries(params || {})
+    .filter(([, value]) => value !== undefined && value !== null && value !== "")
+    .sort(([a], [b]) => a.localeCompare(b));
+  return JSON.stringify(entries);
+};
+
+const readCache = (cacheRef, key) => {
+  const entry = cacheRef.current.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.time > QUERY_CACHE_TTL_MS) {
+    cacheRef.current.delete(key);
+    return null;
+  }
+  return entry.value;
+};
+
+const writeCache = (cacheRef, key, value) => {
+  cacheRef.current.set(key, { value, time: Date.now() });
+};
+
 export const AppProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
@@ -63,6 +86,10 @@ export const AppProvider = ({ children }) => {
   const [messages, setMessages] = useState([]);
   const [supportLoading, setSupportLoading] = useState(false);
   const pollingRef = useRef(null);
+  const productsCacheRef = useRef(new Map());
+  const productsInflightRef = useRef(new Map());
+  const bestSellersCacheRef = useRef(new Map());
+  const bestSellersInflightRef = useRef(new Map());
 
   // Load user/token from localStorage on mount
   useEffect(() => {
@@ -176,9 +203,56 @@ export const AppProvider = ({ children }) => {
 
   const getProducts = useCallback(
     async (params = {}) => {
-      const res = await api.getProducts(params);
-      const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
-      return list.filter(isWebsiteVisibleProduct);
+      const key = buildQueryKey(params);
+      const cached = readCache(productsCacheRef, key);
+      if (cached) return cached;
+
+      const inflight = productsInflightRef.current.get(key);
+      if (inflight) return inflight;
+
+      const request = api.getProducts(params)
+        .then((res) => {
+          const payload = Array.isArray(res)
+            ? res.filter(isWebsiteVisibleProduct)
+            : {
+                ...res,
+                items: (Array.isArray(res?.items) ? res.items : []).filter(isWebsiteVisibleProduct),
+              };
+          writeCache(productsCacheRef, key, payload);
+          return payload;
+        })
+        .finally(() => {
+          productsInflightRef.current.delete(key);
+        });
+
+      productsInflightRef.current.set(key, request);
+      return request;
+    },
+    []
+  );
+
+  const getBestSellingProducts = useCallback(
+    async (params = {}) => {
+      const key = buildQueryKey(params);
+      const cached = readCache(bestSellersCacheRef, key);
+      if (cached) return cached;
+
+      const inflight = bestSellersInflightRef.current.get(key);
+      if (inflight) return inflight;
+
+      const request = api.getBestSellingProducts(params)
+        .then((res) => {
+          const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
+          const payload = list.filter(isWebsiteVisibleProduct);
+          writeCache(bestSellersCacheRef, key, payload);
+          return payload;
+        })
+        .finally(() => {
+          bestSellersInflightRef.current.delete(key);
+        });
+
+      bestSellersInflightRef.current.set(key, request);
+      return request;
     },
     []
   );
@@ -293,6 +367,7 @@ export const AppProvider = ({ children }) => {
         // Products & Media
         getCategories: api.getCategories,
         getProducts,
+        getBestSellingProducts,
         getProductById,
         getBrands: api.getBrands,
         getMarketingBanners: api.getMarketingBanners,

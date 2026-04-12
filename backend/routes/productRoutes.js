@@ -1,5 +1,6 @@
 import express from "express";
 import Product from "../model/Product.js";
+import Order from "../model/Order.js";
 import { productUpload } from "../middleware/productUpload.js";
 import { createProduct, updateProduct, bulkImportProducts } from "../controllers/product.controller.js";
 import { calculateUnitPricing } from "../utils/pricing.js";
@@ -50,7 +51,7 @@ router.post("/bulk", bulkImportProducts);
 // 📖 READ All Products (populate category & brand). Query: ?category=name|?categoryId=id|?brand=name|?brandId=id
 router.get("/", async (req, res) => {
   try {
-    const { category, categoryId, brand, brandId, search, published } = req.query;
+    const { category, categoryId, brand, brandId, search, published, page, limit, sortBy } = req.query;
     const filter = {};
     const publishedFilter = parseBooleanQuery(published);
 
@@ -78,10 +79,107 @@ router.get("/", async (req, res) => {
       if (b) filter.brand = b._id;
     }
 
-    const products = await Product.find(filter)
+    const sortMap = {
+      newest: { createdAt: -1 },
+      "name-asc": { productName: 1 },
+      "name-desc": { productName: -1 },
+      "price-low": { sellingPrice: 1 },
+      "price-high": { sellingPrice: -1 },
+    };
+    const sortOption = sortMap[String(sortBy || "newest")] || sortMap.newest;
+
+    const parsedPage = Number.parseInt(page, 10);
+    const parsedLimit = Number.parseInt(limit, 10);
+    const hasPagination = Number.isFinite(parsedPage) || Number.isFinite(parsedLimit);
+
+    if (!hasPagination) {
+      const products = await Product.find(filter)
+        .sort(sortOption)
+        .populate("category", "name description image")
+        .populate("brand", "name logo")
+        .lean();
+
+      return res.json(products.map((p) => attachPricing(p)));
+    }
+
+    const pageNo = Math.max(Number.isFinite(parsedPage) ? parsedPage : 1, 1);
+    const limitNo = Math.min(Math.max(Number.isFinite(parsedLimit) ? parsedLimit : 20, 1), 100);
+    const skip = (pageNo - 1) * limitNo;
+
+    const [products, total] = await Promise.all([
+      Product.find(filter)
+        .sort(sortOption)
+        .skip(skip)
+        .limit(limitNo)
+        .populate("category", "name description image")
+        .populate("brand", "name logo")
+        .lean(),
+      Product.countDocuments(filter),
+    ]);
+
+    return res.json({
+      items: products.map((p) => attachPricing(p)),
+      total,
+      page: pageNo,
+      limit: limitNo,
+      totalPages: Math.max(Math.ceil(total / limitNo), 1),
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// 📈 READ Best-selling Products (ranked by ordered quantity)
+router.get("/best-sellers", async (req, res) => {
+  try {
+    const parsedLimit = Number(req.query.limit);
+    const limit = Number.isFinite(parsedLimit)
+      ? Math.min(Math.max(Math.trunc(parsedLimit), 1), 100)
+      : 20;
+
+    const sales = await Order.aggregate([
+      {
+        $match: {
+          status: { $nin: ["PENDING", "CANCELLED"] },
+        },
+      },
+      { $unwind: "$items" },
+      {
+        $group: {
+          _id: "$items.product",
+          orderedQty: { $sum: { $ifNull: ["$items.quantity", 0] } },
+        },
+      },
+      { $sort: { orderedQty: -1 } },
+      { $limit: limit },
+    ]);
+
+    const idsInOrder = sales.map((s) => s._id).filter(Boolean);
+    if (!idsInOrder.length) {
+      return res.json([]);
+    }
+
+    const qtyById = new Map(sales.map((s) => [String(s._id), Number(s.orderedQty) || 0]));
+    const rankById = new Map(idsInOrder.map((id, idx) => [String(id), idx]));
+
+    const products = await Product.find({
+      _id: { $in: idsInOrder },
+      isPublished: true,
+    })
       .populate("category", "name description image")
       .populate("brand", "name logo");
-    res.json(products.map((p) => attachPricing(p)));
+
+    const ranked = products
+      .map((product) => {
+        const priced = attachPricing(product);
+        return {
+          ...priced,
+          orderedQty: qtyById.get(String(product._id)) || 0,
+        };
+      })
+      .sort((a, b) => (rankById.get(String(a._id)) ?? Number.MAX_SAFE_INTEGER) - (rankById.get(String(b._id)) ?? Number.MAX_SAFE_INTEGER));
+
+    res.json(ranked);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

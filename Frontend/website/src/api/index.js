@@ -12,6 +12,14 @@ export const getProducts = (params = {}) => {
   return apiGet(`/products${q ? `?${q}` : ""}`);
 };
 
+export const getBestSellingProducts = (params = {}) => {
+  const clean = Object.fromEntries(
+    Object.entries(params).filter(([, v]) => v != null && v !== "")
+  );
+  const q = new URLSearchParams(clean).toString();
+  return apiGet(`/products/best-sellers${q ? `?${q}` : ""}`);
+};
+
 export const getProductById = (id) => apiGet(`/products/${id}?published=true`);
 
 export const getCategories = () => apiGet("/categories");

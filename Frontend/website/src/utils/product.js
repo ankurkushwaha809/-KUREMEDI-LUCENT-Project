@@ -66,6 +66,7 @@ export function normalizeProduct(p) {
   const expiryDate = p.expiryDate || p.expiry || p.expiryAt || p.expDate;
   return {
     _id: p._id,
+    productName: p.productName || p.name || "",
     name: p.productName || p.name || "",
     price,
     mrp,
@@ -91,6 +92,8 @@ export function normalizeProduct(p) {
     expiryDate,
     packing: p.packing,
     hsnCode: p.hsnCode,
+    createdAt: p.createdAt || null,
+    updatedAt: p.updatedAt || null,
   };
 }
 

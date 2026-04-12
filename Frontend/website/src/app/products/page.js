@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { getProductSlug, normalizeProducts } from "@/utils/product";
-import { Heart, ChevronLeft } from "lucide-react";
+import { ChevronLeft, Search } from "lucide-react";
 import { useAppContext } from "@/context/context";
 import { ProductCard } from "@/components/ProductCard";
 import { SkeletonProductGrid } from "@/components/Skeleton";
@@ -14,17 +14,52 @@ export default function ProductsPage() {
     useAppContext();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchText, setSearchText] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [sortBy, setSortBy] = useState("newest");
+  const [page, setPage] = useState(1);
+  const [limit] = useState(20);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchText.trim());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchText]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, sortBy]);
 
   useEffect(() => {
     setLoading(true);
-    getProducts()
+    getProducts({
+      page,
+      limit,
+      search: debouncedSearch || undefined,
+      sortBy,
+    })
       .then((res) => {
-        const list = Array.isArray(res) ? res : res?.data ?? [];
-        setProducts(normalizeProducts(list));
+        const items = Array.isArray(res)
+          ? res
+          : Array.isArray(res?.items)
+            ? res.items
+            : Array.isArray(res?.data)
+              ? res.data
+              : [];
+
+        setProducts(normalizeProducts(items));
+
+        const total = Number(res?.total);
+        const pages = Number(res?.totalPages);
+        setTotalProducts(Number.isFinite(total) ? total : items.length);
+        setTotalPages(Number.isFinite(pages) && pages > 0 ? pages : 1);
       })
       .catch(() => setProducts([]))
       .finally(() => setLoading(false));
-  }, [getProducts]);
+  }, [getProducts, page, limit, debouncedSearch, sortBy]);
 
   const handleAdd = async (product) => {
     if (!token) {
@@ -57,7 +92,32 @@ export default function ProductsPage() {
           </div>
         </div>
         <div className="inline-block bg-teal-50 rounded-full px-4 py-2 text-sm font-semibold text-teal-700 border border-teal-200">
-          {products.length} products available
+          {totalProducts} products available
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="relative">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="Search by product, brand, category"
+              className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-teal-400"
+            />
+          </div>
+
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 bg-white py-2.5 px-3 text-sm outline-none focus:border-teal-400"
+          >
+            <option value="newest">Sort by: Newest</option>
+            <option value="name-asc">Sort by: Name (A-Z)</option>
+            <option value="name-desc">Sort by: Name (Z-A)</option>
+            <option value="price-low">Sort by: Price (Low to High)</option>
+            <option value="price-high">Sort by: Price (High to Low)</option>
+          </select>
         </div>
       </section>
 
@@ -72,43 +132,67 @@ export default function ProductsPage() {
             </svg>
           </div>
           <p className="text-lg font-semibold text-gray-600 mb-2">No products found</p>
-          <p className="text-sm text-gray-500 mb-4">Check back soon for our latest offerings</p>
+          <p className="text-sm text-gray-500 mb-4">Try a different search or sort option</p>
           <Link href="/" className="text-teal-700 font-semibold hover:underline">
             ← Return to Home
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {products.map((product) => {
-            const wished = isInWishlist?.(product._id);
-            const cartItem = cartItems.find((item) => item._id === product._id);
-            const img = product?.productImages?.[0] || product?.image;
-            const discountPercent = product.discountPercent || 0;
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {products.map((product) => {
+              const wished = isInWishlist?.(product._id);
+              const cartItem = cartItems.find((item) => item._id === product._id);
+              const img = product?.productImages?.[0] || product?.image;
+              const discountPercent = product.discountPercent || 0;
 
-            return (
-              <ProductCard
-                key={product._id}
-                product={product}
-                cartItem={cartItem}
-                wished={wished}
-                onAdd={() => handleAdd(product)}
-                onUpdateQty={updateCartQty}
-                onToggleWishlist={() =>
-                  toggleWishlist?.({
-                    _id: product._id,
-                    name: product.productName || product.name,
-                    price: product.sellingPrice || product.price,
-                    image: getProductImageUrl?.(img),
-                    unit: product.packSize || product.unit || "1 unit",
-                  })
-                }
-                imageUrl={getProductImageUrl?.(img)}
-                showBadge={discountPercent > 0}
-                badgeText={discountPercent > 0 ? `${discountPercent}% OFF` : ""}
-              />
-            );
-          })}
-        </div>
+              return (
+                <ProductCard
+                  key={product._id}
+                  product={product}
+                  cartItem={cartItem}
+                  wished={wished}
+                  onAdd={() => handleAdd(product)}
+                  onUpdateQty={updateCartQty}
+                  onToggleWishlist={() =>
+                    toggleWishlist?.({
+                      _id: product._id,
+                      name: product.productName || product.name,
+                      price: product.sellingPrice || product.price,
+                      image: getProductImageUrl?.(img),
+                      unit: product.packSize || product.unit || "1 unit",
+                    })
+                  }
+                  imageUrl={getProductImageUrl?.(img)}
+                  showBadge={discountPercent > 0}
+                  badgeText={discountPercent > 0 ? `${discountPercent}% OFF` : ""}
+                />
+              );
+            })}
+          </div>
+
+          <div className="mt-8 flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+              disabled={page <= 1 || loading}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-gray-600">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+              disabled={page >= totalPages || loading}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </>
       )}
     </div>
   );

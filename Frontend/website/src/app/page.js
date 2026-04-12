@@ -72,6 +72,7 @@ const HomePage = () => {
     getImageUrl,
     getBrands,
     getMarketingBanners,
+    getBestSellingProducts,
     getBrandImageUrl,
     getProducts,
     getProductImageUrl,
@@ -87,6 +88,7 @@ const HomePage = () => {
   const [categories, setCategories] = useState([]);
   const [brands, setBrands] = useState([]);
   const [products, setProducts] = useState([]);
+  const [bestSellingProducts, setBestSellingProducts] = useState([]);
   const [bannerSlides, setBannerSlides] = useState(FALLBACK_BANNERS);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -94,29 +96,24 @@ const HomePage = () => {
   const [isBrandsHovered, setIsBrandsHovered] = useState(false);
 
   const bestSelling = useMemo(() => {
-    return [...(products || [])].sort((a, b) => {
-      const dA = a.discountPercent ?? 0;
-      const dB = b.discountPercent ?? 0;
-      if (dB !== dA) return dB - dA;
-      return (b.sellingPrice ?? b.price ?? 0) - (a.sellingPrice ?? a.price ?? 0);
-    });
-  }, [products]);
+    if (Array.isArray(bestSellingProducts) && bestSellingProducts.length > 0) {
+      return bestSellingProducts;
+    }
+    return [...(products || [])]
+      .sort((a, b) => {
+        const tA = new Date(a.createdAt || a.updatedAt || 0).getTime();
+        const tB = new Date(b.createdAt || b.updatedAt || 0).getTime();
+        return tB - tA;
+      })
+      .slice(0, 12);
+  }, [bestSellingProducts, products]);
 
   const newArrivals = useMemo(() => {
     return [...(products || [])].sort((a, b) => {
-      const tA = new Date(a.createdAt ?? 0).getTime();
-      const tB = new Date(b.createdAt ?? 0).getTime();
+      const tA = new Date(a.createdAt || a.updatedAt || 0).getTime();
+      const tB = new Date(b.createdAt || b.updatedAt || 0).getTime();
       return tB - tA;
-    });
-  }, [products]);
-
-  const healthEssentials = useMemo(() => {
-    return [...(products || [])].sort((a, b) => {
-      const stockA = a.stockQuantity ?? 0;
-      const stockB = b.stockQuantity ?? 0;
-      if (stockA !== stockB) return stockB - stockA;
-      return ((a.productName || a.name) ?? "").localeCompare((b.productName || b.name) ?? "");
-    });
+    }).slice(0, 10);
   }, [products]);
 
   const searchMatches = useMemo(() => {
@@ -172,34 +169,44 @@ const HomePage = () => {
     const loadData = async () => {
       setLoading(true);
       try {
-        const [catRes, brandRes, prodRes, bannerRes] = await Promise.all([
+        const [catRes, brandRes, prodRes, bannerRes, bestRes] = await Promise.allSettled([
           getCategories(),
           getBrands(),
           getProducts(),
           getMarketingBanners(),
+          getBestSellingProducts({ limit: 20 }),
         ]);
-        const categoriesList = Array.isArray(catRes?.data)
-          ? catRes.data
-          : Array.isArray(catRes)
-            ? catRes
+        const categoriesPayload = catRes.status === "fulfilled" ? catRes.value : [];
+        const brandsPayload = brandRes.status === "fulfilled" ? brandRes.value : [];
+        const productsPayload = prodRes.status === "fulfilled" ? prodRes.value : [];
+        const bannersPayload = bannerRes.status === "fulfilled" ? bannerRes.value : [];
+        const bestPayload = bestRes.status === "fulfilled" ? bestRes.value : [];
+
+        const categoriesList = Array.isArray(categoriesPayload?.data)
+          ? categoriesPayload.data
+          : Array.isArray(categoriesPayload)
+            ? categoriesPayload
             : [];
-        const brandsList = Array.isArray(brandRes?.data)
-          ? brandRes.data
-          : Array.isArray(brandRes)
-            ? brandRes
+        const brandsList = Array.isArray(brandsPayload?.data)
+          ? brandsPayload.data
+          : Array.isArray(brandsPayload)
+            ? brandsPayload
             : [];
-        const productsList = Array.isArray(prodRes?.data)
-          ? prodRes.data
-          : Array.isArray(prodRes)
-            ? prodRes
+        const productsList = Array.isArray(productsPayload?.data)
+          ? productsPayload.data
+          : Array.isArray(productsPayload)
+            ? productsPayload
             : [];
 
         setCategories(categoriesList);
         setBrands(brandsList);
         setProducts(normalizeProducts(productsList));
+        setBestSellingProducts(
+          normalizeProducts(Array.isArray(bestPayload?.data) ? bestPayload.data : bestPayload || [])
+        );
 
-        const activeBanners = Array.isArray(bannerRes?.data)
-          ? bannerRes.data
+        const activeBanners = Array.isArray(bannersPayload?.data)
+          ? bannersPayload.data
               .map((b) => {
                 const image = getImageUrl(b?.image);
                 if (!image) return null;
@@ -225,7 +232,7 @@ const HomePage = () => {
       }
     };
     loadData();
-  }, [getCategories, getBrands, getProducts, getMarketingBanners, getImageUrl]);
+  }, [getCategories, getBrands, getProducts, getMarketingBanners, getBestSellingProducts, getImageUrl]);
 
   if (loading) {
     return (
@@ -477,20 +484,8 @@ const HomePage = () => {
             isInWishlist={isInWishlist}
             token={token}
             user={user}
+            pageSize={5}
           />
-          <ProductCarousel
-            title="Health essentials"
-            products={healthEssentials}
-            getProductImageUrl={getProductImageUrl}
-            addToCart={addToCart}
-            updateCartQty={updateCartQty}
-            cartItems={cartItems}
-            toggleWishlist={toggleWishlist}
-            isInWishlist={isInWishlist}
-            token={token}
-            user={user}
-          />
-
           {/* All Products Section */}
           <section className="pt-6 border-t border-gray-200">
             <div className="flex justify-between items-center mb-8">
@@ -507,7 +502,7 @@ const HomePage = () => {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {products.slice(0, 10).map((product) => {
+              {products.slice(0, 15).map((product) => {
                 const wished = isInWishlist?.(product._id);
                 const cartItem = cartItems.find((item) => item._id === product._id);
                 const img = product?.productImages?.[0] || product?.image;
@@ -550,6 +545,20 @@ const HomePage = () => {
                 );
               })}
             </div>
+
+            {products.length > 15 ? (
+              <div className="mt-8 flex items-center justify-center gap-3 text-emerald-700">
+                <span className="h-px w-20 bg-emerald-200" />
+                <button
+                  type="button"
+                  onClick={() => router.push("/products")}
+                  className="rounded-full border border-emerald-300 bg-emerald-50 px-5 py-2 text-sm font-semibold uppercase tracking-[0.08em] hover:bg-emerald-100"
+                >
+                  View More
+                </button>
+                <span className="h-px w-20 bg-emerald-200" />
+              </div>
+            ) : null}
           </section>
         </>
       )}
